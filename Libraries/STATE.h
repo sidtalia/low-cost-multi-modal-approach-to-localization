@@ -52,9 +52,9 @@ public :
 		the error in the estimated position can be upto Previous_Error + (error_in_speed*time_elapsed) = 1 + 0.1 = 1.1 meters
 		the position measurement device gives the position as 7 meters with an error of 2.2 meters. 
 		the gain for the measurement is calculated as 
-							error in estimate 					1.1
+				error in estimate 			   1.1
 		gain = --------------------------------------- = 	----------- = 1/3 = 0.33
-				error in estiate + error in measurement		 2.2 + 1.1
+			error in estiate + error in measurement		 2.2 + 1.1
 		
 		corrected position = meas*gain + (1-gain)*estimate (1)
 		the corrected position is = 7*0.33 + 5(1-0.33) = 5.66 meters. 
@@ -125,7 +125,7 @@ public :
 
 		PosError_Y += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
 		PosError_X += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives. See how much simpler it is to
-														//understand when you DON'T use matrices(looking at you Ardupilot, px4, etc)??
+						//understand when you DON'T use matrices(looking at you Ardupilot and px4).
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		if(OF_P_Error<1) //optical flow is still somewhat functional. 1 = 1 meter of error. usually the error is in the order of a few millimeters
@@ -136,19 +136,19 @@ public :
 			PosGain_X = OF_P_Error/(PosError_X + OF_P_Error);
 			PosGain_Y = OF_P_Error/(PosError_Y + OF_P_Error);
 			VelGain = OF_V_Error/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because
-														//this isn't velocity, its speed. Accelerometer can't actually measure the sideways movement of a car because how do 
-														//you figure out when it's taking a turn and when it's actually moving sideways? In a drone its easier because you can 
-														//take into account the bank angle (since drones and planes move by virtue of banking). The same is not valid for a car 
-														//and there fore it makes little sense to fuse data in multiple dimensions.
+								//this isn't velocity, its speed. Accelerometer can't actually measure the sideways movement of a car because how do 
+								//you figure out when it's taking a turn and when it's actually moving sideways? In a drone its easier because you can 
+								//take into account the bank angle (since drones and planes move by virtue of banking). The same is not valid for a car 
+								//and there fore it makes little sense to fuse data in multiple dimensions.
 			
 			Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 
 			X = X*PosGain_X + (1-PosGain_X)*Xacc;//in most implementations, you would see this happening through matrix multiplication. I hate that.
 			Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//Yes matrix multiplication makes it easier for programmers, but it makes it impossible to understand for 
-												 //just about every body else who doesn't already have a degree in thermonuclear astrophysics.
-												 //basically if someone needs background knowledge in some subject just to understand what the code is doing,
-												 // you need to work on the understandability of your code 
-												 //(and if you think its not important then you might as well straight up work in hex code)
+							 //just about every body else who doesn't already have a degree in thermonuclear astrophysics.
+							 //basically if someone needs background knowledge in some subject just to understand what the code is doing,
+							 // you need to work on the understandability of your code 
+							 //(and if you think its not important then you might as well straight up work in hex code)
 
 			VelError *= (1-VelGain);//reduce error in the estimate. once out of this function, do remember to pass this value to the margs in order to update them!
 			PosError_X *= (1-PosGain_X);
