@@ -8,7 +8,7 @@ SPISettings spiSettings(2e6, MSBFIRST, SPI_MODE3);    // 2 MHz, mode 3
 OPFLOW::OPFLOW()
 {
 	CALIBERATION = DEFAULT_CALIB;
-  Frequency = DEFAULT_FREQUENCY;
+	Frequency = DEFAULT_FREQUENCY;
 }
 
 void OPFLOW::caliberation(float height,float angle,float dt)//distance measured by a rangefinder, angle made by the object with the vertical
@@ -30,36 +30,36 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 		int8_t dx = buf[1];   //caliberation for conversion to meters.   
 		int8_t dy = buf[2];
 		uint8_t surfaceQuality = buf[3];
-    X = float(dx)*CALIBERATION;
-    Y = float(dy)*CALIBERATION;
-    SQ = surfaceQuality;
+		X = float(dx)*CALIBERATION;
+		Y = float(dy)*CALIBERATION;
+		SQ = surfaceQuality;
 
-    if(SQ>40)
-    {
-      P_Error = CALIBERATION/SQ;//the smallest distance it can measure divided by surface Quality.
-                                        //more surface quality = more reliable least count.
-      V_Error = P_Error*Frequency; //least count/smallest time division
-    }
-    else
-    {
-      P_Error = 1000; //some very large value that the optical flow sensor would never actually have.
-      V_Error = 400000;//ridiculous values to represent that optical flow is unreliable
-    }
-  } 
+		if(SQ>40)
+		{
+		  P_Error = CALIBERATION/SQ;//the smallest distance it can measure divided by surface Quality.
+											//more surface quality = more reliable least count.
+		  V_Error = P_Error*Frequency; //least count/smallest time division
+		}
+		else
+		{
+		  P_Error = 1000; //some very large value that the optical flow sensor would never actually have.
+		  V_Error = 400000;//ridiculous values to represent that optical flow is unreliable
+		}
+	} 
 	else if(motion & 0x10)  //buffer overflow
 	{
 		int8_t dx = 0;   //caliberation for conversion to meters.   
 		int8_t dy = 0;
 		uint8_t surfaceQuality = 1;		
-    X = 0.0;
-    Y = 0.0;
-    SQ = float(surfaceQuality);
-	  P_Error = 1000; //some very large value that the optical flow sensor would never actually have.
-    V_Error = 400000;//ridiculous values to represent that optical flow is unreliable.
-  }
+		X = 0.0;
+		Y = 0.0;
+		SQ = float(surfaceQuality);
+		  P_Error = 1000; //some very large value that the optical flow sensor would never actually have.
+		V_Error = 400000;//ridiculous values to represent that optical flow is unreliable.
+	}
 
-  V_x = X*Frequency;
-  V_y = Y*Frequency;
+	V_x = X*Frequency;
+	V_y = Y*Frequency;
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
