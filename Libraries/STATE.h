@@ -38,7 +38,7 @@ public :
 		float sinmh = my_sin(mh*DEG2RAD);
 		float Vacc,Xacc,Yacc,dS,dSError,dTheta;
 		float PosGain_Y, PosGain_X, VelGain;
-		VelError = VError;
+		VelError = VError; //VelError is the velocity erro in the "state." I'm transferring the velocity error from outside to the object member
 		/*
 		OVERVIEW:
 		OVERVIEW OF COMMON SENSE FILTER : (aka kalman filter)
@@ -52,9 +52,9 @@ public :
 		the error in the estimated position can be upto Previous_Error + (error_in_speed*time_elapsed) = 1 + 0.1 = 1.1 meters
 		the position measurement device gives the position as 7 meters with an error of 2.2 meters. 
 		the gain for the measurement is calculated as 
-				error in estimate 			   1.1
+							error in estimate 					1.1
 		gain = --------------------------------------- = 	----------- = 1/3 = 0.33
-			error in estiate + error in measurement		 2.2 + 1.1
+				error in estiate + error in measurement		 2.2 + 1.1
 		
 		corrected position = meas*gain + (1-gain)*estimate (1)
 		the corrected position is = 7*0.33 + 5(1-0.33) = 5.66 meters. 
@@ -101,22 +101,40 @@ public :
 		between this and theory sort of perfect. When estimating position from the optical Flow, I don't consider the error in the heading 
 		(it seems a bit dubious because the error isn't going to be integrated and the error in the optical flow readings is so small (at most 5 mm or so)
 
-		This function takes data from position, hdop and validity from gps, takes heading, heading error, acceleration, estimated Velocity,
+		This function takes data from position, Hdop and validity from gps, takes heading, heading error, acceleration, estimated Velocity,
 		error in estimated velocity from IMU, change in position along car's X, Y axis, speed along car's X, Y axis, position Error and 
 		Velocity Error from optical flow
 		
 		WORKING: (the comments alonside the code are also a part of this section)
 		the velocity is estimated and error is integrated within the IMU code (MPU9150.cpp) itself but the corrections and bias calculations 
 		are performed here
-		The first order of business is to find the distance moved since the last cycle(2.5ms) (dS) based on the velocity estimate(V) 
+		The next order of business is to find the distance moved since the last cycle(2.5ms) (dS) based on the velocity estimate(V) 
 		Then we compute the estimated position based on the distance moved(but this isn't the final estimate) from the IMU (Xacc->X accelerometer)
 		then we compute the error in distance moved (dSError) and the error in the heading(well it's given already we just change the units from degrees to radians)
 		the error in the position estimate is not just the error in velocity*dt. As explained in the Extended kalman briefing, the formula here is different
 		*/
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
 		//Acceleration bias is removed in the MPU9150 code itself.
-		//distance moved in the last cycle
-		dS = Vacc*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
+		//CORRECTING VELOCITY FIRST.
+		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
+		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because
+													//this isn't velocity, its speed. Accelerometer can't actually measure the sideways movement of a car because you can't
+													//figure out when the car is sliding and when the car is simply taking a turn
+													//(yes you can discriminate between them by considering the expected turning radius based on the speed and yaw Rate
+													// but that brings in another problem: now you have a source of error in the sideways acceleration that must be 
+													//taken into account somewhere down the line!)
+													// In a drone its easier because you can 
+													//take into account the bank angle (since drones and planes move by virtue of banking). The same is not valid for a car 
+													//and there fore it makes little sense to fuse data in the NED fashion (although I might do it in the future just for the 
+													//sake of it.
+		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
+		VelError *= (1-VelGain);//reduce the error in the estimate.
+		//find the difference between prediction and measurement.
+		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
+		AccBias += (Vacc - Velocity)*VelGain*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+
+		//distance moved in last cycle.
+		dS = Velocity*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
 		Xacc = X + dS*cosmh + sinmh*OF_X; //estimated X position. OF_X is the sideways movement measured by the optical flow senosr(can't do that with a wheel encoder can you now?)
 		Yacc = Y + dS*sinmh + cosmh*OF_X; //estimated Y position
 
@@ -125,47 +143,31 @@ public :
 
 		PosError_Y += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
 		PosError_X += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives. See how much simpler it is to
-						//understand when you DON'T use matrices(looking at you Ardupilot and px4).
+														//understand when you DON'T use matrices(looking at you Ardupilot, px4, etc)??
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
-		if(OF_P_Error<1) //optical flow is still somewhat functional. 1 = 1 meter of error. usually the error is in the order of a few millimeters
-		{
-			X += cosmh*OF_Y + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
-			Y += sinmh*OF_Y + cosmh*OF_X; //
+		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
+		X += cosmh*OF_Y + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
+		Y += sinmh*OF_Y + cosmh*OF_X; //
 
-			PosGain_X = OF_P_Error/(PosError_X + OF_P_Error);
-			PosGain_Y = OF_P_Error/(PosError_Y + OF_P_Error);
-			VelGain = OF_V_Error/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because
-								//this isn't velocity, its speed. Accelerometer can't actually measure the sideways movement of a car because how do 
-								//you figure out when it's taking a turn and when it's actually moving sideways? In a drone its easier because you can 
-								//take into account the bank angle (since drones and planes move by virtue of banking). The same is not valid for a car 
-								//and there fore it makes little sense to fuse data in multiple dimensions.
-			
-			Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
+		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
+		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
+		
+		
+		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 
-			X = X*PosGain_X + (1-PosGain_X)*Xacc;//in most implementations, you would see this happening through matrix multiplication. I hate that.
-			Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//Yes matrix multiplication makes it easier for programmers, but it makes it impossible to understand for 
-							 //just about every body else who doesn't already have a degree in thermonuclear astrophysics.
-							 //basically if someone needs background knowledge in some subject just to understand what the code is doing,
-							 // you need to work on the understandability of your code 
-							 //(and if you think its not important then you might as well straight up work in hex code)
-
-			VelError *= (1-VelGain);//reduce error in the estimate. once out of this function, do remember to pass this value to the margs in order to update them!
-			PosError_X *= (1-PosGain_X);
-			PosError_Y *= (1-PosGain_Y);
-			//find the difference between prediction and measurement.
-			//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-			AccBias += (Vacc - Velocity)*VelGain*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
-		}
-		else //optical flow is defunct mah dudes
-		{
-			X = Xacc;//in case the optical flow is defunct, we have no choice but to use the accelerometer estimates
-			Y = Yacc;//and pray to god that our deeds repay us and that the car does not end up in a ditch. 
-			Velocity = Vacc;//actually we could use the gps for speed but thats not exactly the best idea, I might include that in the future tho.
-		}                                
+		X = X*PosGain_X + (1-PosGain_X)*Xacc;//in most implementations, you would see this happening through matrix multiplication. I hate that.
+		Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//Yes matrix multiplication makes it easier for programmers, but it makes it impossible to understand for 
+											 //just about every body else who doesn't already have a degree in thermonuclear astrophysics(sarcasm).
+											 //basically if someone needs background knowledge in some subject just to understand what the code is doing,
+											 // you need to work on the understandability of your code 
+											 //(and if you think its not important then you might as well straight up work in hex code)
+		PosError_X *= (1-PosGain_X);
+		PosError_Y *= (1-PosGain_Y);
+			                         
 
 		//POSITION ESTIMATION USING GPS + ESTIMATED POSITION FROM PREVIOUS METHODS
-		if(tick)//if new GPS data was received
+		if(tick && (Hdop<2.5) )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
 		{	/*
 			We have the current estimate for the position, but the gps data corresponds to the position 100ms ago (the gps update rate is 10Hz).
 			So we have to do the data fusion in the past, find the corrected position in the past and then shift the current position estimate by
@@ -181,7 +183,7 @@ public :
 			3.2 - 3.4 = -0.2 
 			meaning that my current position estimate is shifted to 5 + (-0.2) = 4.8 meters.
 			*/
-			last_X = (longitude - lastLon)*DEG2METER + lastX;//getting the past gps position 
+			last_X = (longitude - lastLon)*DEG2METER + lastX;//getting the last gps position 
 			last_Y = (latitude - lastLat)*DEG2METER + lastY; 
 			
 			lastLon = longitude;//setting lastLat, lastLon for next iteration
