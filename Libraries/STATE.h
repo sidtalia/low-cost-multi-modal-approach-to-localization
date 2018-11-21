@@ -1,6 +1,7 @@
 #ifndef _STATE_H_
 #define _STATE_H_
 #include"SIDMATH.h"
+#include"PARAMS.h"
 
 #define DEFAULT_DT (float)0.0025
 #define DEG2METER (float)111692.84
@@ -11,33 +12,42 @@ class STATE
 public :
 	float iLat,iLon,lastLat,lastLon;
 	float latitude,longitude,heading,Velocity,Acceleration;
-	float X, lastX, past_X, Y, lastY, past_Y, PosError_X, PosError_Y, VelError;
-	float AccBias,dt;
+	float X, last_X, past_X, past_PosError_X, Y, last_Y, past_Y, past_PosError_Y, PosError_X, PosError_Y, VelError;
+	float AccBias;
+	bool position_reset;
 
 	void initialize(float lon,float lat,float Hdop, float head, float Vel, float acc)
 	{
 		iLat = lastLat = latitude = lat;
 		iLon = lastLon = longitude = lon;
-		X = lastX = past_X = 0;
-		Y = lastY = past_Y = 0;
+		X = last_X = past_X = 0;
+		Y = last_Y = past_Y = 0;
 		PosError_X = PosError_Y = Hdop;
+		if(Hdop>100)
+		{
+			position_reset = true;//iLat and iLon will need to be reset later if gps becomes available mid-mission
+		}
+		else
+		{
+			position_reset = false;
+		}
 		past_PosError_X = PosError_X;
 		past_PosError_Y = PosError_Y;
 		VelError = 0;
 		heading = head;
 		Velocity = Vel;
 		Acceleration = acc; //initially acc, vel should be close to 0
-		dt = DEFAULT_DT;
 	}
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
 	
-	void location_Predict(float lon, float lat, float tick,float Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
+	void state_update(float lon, float lat, float tick,float Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
 						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error)
 	{
 		float cosmh = my_cos(mh*DEG2RAD);
 		float sinmh = my_sin(mh*DEG2RAD);
-		float Vacc,Xacc,Yacc,dS,dSError,dTheta;
+		float Xacc,Yacc,dS,dSError,dTheta;
 		float PosGain_Y, PosGain_X, VelGain;
+		heading = mh;
 		VelError = VError; //VelError is the velocity erro in the "state." I'm transferring the velocity error from outside to the object member
 		/*
 		OVERVIEW:
@@ -115,7 +125,7 @@ public :
 		*/
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
 		//Acceleration bias is removed in the MPU9150 code itself.
-		//CORRECTING VELOCITY FIRST.
+		//CORRECTING VELOCITY FIRST
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
 		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because
 													//this isn't velocity, its speed. Accelerometer can't actually measure the sideways movement of a car because you can't
@@ -133,7 +143,7 @@ public :
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
 		AccBias += (Vacc - Velocity)*VelGain*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
 
-		//distance moved in last cycle.
+		//distance moved in last cycle
 		dS = Velocity*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
 		Xacc = X + dS*cosmh + sinmh*OF_X; //estimated X position. OF_X is the sideways movement measured by the optical flow senosr(can't do that with a wheel encoder can you now?)
 		Yacc = Y + dS*sinmh + cosmh*OF_X; //estimated Y position
@@ -167,7 +177,7 @@ public :
 			                         
 
 		//POSITION ESTIMATION USING GPS + ESTIMATED POSITION FROM PREVIOUS METHODS
-		if(tick && (Hdop<2.5) )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
+		if(tick && (Hdop<2.5) && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
 		{	/*
 			We have the current estimate for the position, but the gps data corresponds to the position 100ms ago (the gps update rate is 10Hz).
 			So we have to do the data fusion in the past, find the corrected position in the past and then shift the current position estimate by
@@ -183,8 +193,8 @@ public :
 			3.2 - 3.4 = -0.2 
 			meaning that my current position estimate is shifted to 5 + (-0.2) = 4.8 meters.
 			*/
-			last_X = (longitude - lastLon)*DEG2METER + lastX;//getting the last gps position 
-			last_Y = (latitude - lastLat)*DEG2METER + lastY; 
+			last_X = (longitude - lastLon)*DEG2METER + last_X;//getting the last gps position 
+			last_Y = (latitude - lastLat)*DEG2METER + last_Y; 
 			
 			lastLon = longitude;//setting lastLat, lastLon for next iteration
 			lastLat = latitude; 
@@ -210,11 +220,21 @@ public :
 			past_Y = Y;
 
 		}
+		if(position_reset && Hdop < 1.0 && tick)
+		{
+			lastLat = latitude;
+			lastLon = longitude;
+			last_X = past_X = X - Velocity*0.1*cosmh; //too dumb to solve this problem in a sophisticated manner 
+			last_Y = past_Y = Y - Velocity*0.1*sinmh;
+			past_PosError_X = PosError_X;
+			past_PosError_Y = PosError_Y;
+
+			position_reset = false;
+		}
 		latitude = iLat + Y*METER2DEG;
 		longitude = iLon + X*METER2DEG;
-
 		//----------LOCALIZATION ENDS-------------------------------------
-	}//on an STM32F103C8T6 running at 127MHz clock speed, this function takes 60.61 us to execute and 44 bytes of extra memory for local variables.
+	}//on an STM32F103C8T6 running at 128MHz clock speed, this function takes 60.61 us to execute and 44 bytes of extra memory for local variables.
 
 };
 //this class takes 80 bytes in variables
