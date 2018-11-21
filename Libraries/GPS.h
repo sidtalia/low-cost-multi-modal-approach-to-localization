@@ -2,6 +2,7 @@
 #define _GPS_H
 
 #include"Arduino.h"
+#include"PARAMS.h"
 
 #define GPS_BAUD 230400 
 /*
@@ -247,27 +248,27 @@ public:
 			localizer();
 			delay(5);
 		}
-		if(gps.Hdop > 100)
+		if(Hdop > 100)
 		{
 			return 0;//not useful
 		}
-		if(gps.Hdop > 10)
+		if(Hdop > 10)
 		{
 			return 1;//meh
 		}
-		if(gps.Hdop < 2.5)
+		if(Hdop < 2.5)
 		{
 			return 2; //good enough
 		}
-		if(gps.Hdop < 1.0)
+		if(Hdop < 1.0)
 		{
 			return 3;//usefully accurate
 		}
-		if(gps.Hdop < 0.6)
+		if(Hdop < 0.6)
 		{
 			return 4;//very accurate
 		}
-		if(gps.Hdop < 0.55)
+		if(Hdop < 0.55)
 		{
 			return 5;//dead accurate
 		}
