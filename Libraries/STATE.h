@@ -212,7 +212,6 @@ public :
 				last_Velocity = VelGain*GPS_Velocity + (1-VelGain)*past_Velocity;//correct the last velocity.
 				Velocity += (last_Velocity - past_Velocity);//shift the new velocity by the "innovation"
 				VelError *= (1-VelGain); //reduce the velocity error
-				past_VelError = VelError; //past Velocity error is the current velocity error now
 				//this is the "magical thing" about kfs that the kf boys(including myself) nut to before we sleep. 
 				//Not only is it correcting the position estimate(which is what you initially wanted), it is also correcting the velocity estimate by
 				//exploiting the relation between speed and position. Now the problem here is that if you're travelling at really slow speeds 
@@ -229,7 +228,8 @@ public :
 			past_PosError_X = PosError_X;  //to remember the position error at every instant of time and re-calculate it recursively upto the current
 			past_PosError_Y = PosError_X;  //time every correction step. (there are 40 estimate steps between each correction step)
 										   //In my estimation, this should produce decent results too.
-
+			past_VelError = VelError; //past Velocity error is the current velocity error now
+			
 			X += (last_X - past_X);
 			Y += (last_Y - past_Y); //shift by the difference between last corrected position and last estimated position.
 
