@@ -4,14 +4,13 @@
 #include"PARAMS.h"
 
 #define DEFAULT_DT (float)0.0025
-#define DEG2METER (float)111692.84
-#define METER2DEG (float)1/DEG2METER
+#define GPS_UPDATE_RATE 10 //gps update rate in Hz
 
 class STATE
 {
 public :
 	float iLat,iLon,lastLat,lastLon;
-	float latitude,longitude,heading,Velocity,Acceleration;
+	float latitude, longitude, heading, Velocity, past_Velocity, last_Velocity,past_VelError, Acceleration;
 	float X, last_X, past_X, past_PosError_X, Y, last_Y, past_Y, past_PosError_Y, PosError_X, PosError_Y, VelError;
 	float AccBias;
 	bool position_reset;
@@ -33,9 +32,9 @@ public :
 		}
 		past_PosError_X = PosError_X;
 		past_PosError_Y = PosError_Y;
-		VelError = 0;
+		VelError = past_VelError = 0;
 		heading = head;
-		Velocity = Vel;
+		Velocity = past_Velocity = last_Velocity = Vel;
 		Acceleration = acc; //initially acc, vel should be close to 0
 	}
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
@@ -49,6 +48,7 @@ public :
 		float PosGain_Y, PosGain_X, VelGain;
 		heading = mh;
 		VelError = VError; //VelError is the velocity erro in the "state." I'm transferring the velocity error from outside to the object member
+		float GPS_Velocity,GPS_SAcc; //velocity from gps
 		/*
 		OVERVIEW:
 		OVERVIEW OF COMMON SENSE FILTER : (aka kalman filter)
@@ -124,25 +124,18 @@ public :
 		the error in the position estimate is not just the error in velocity*dt. As explained in the Extended kalman briefing, the formula here is different
 		*/
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
-		//Acceleration bias is removed in the MPU9150 code itself.
+		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
-		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because
-													//this isn't velocity, its speed. Accelerometer can't actually measure the sideways movement of a car because you can't
-													//figure out when the car is sliding and when the car is simply taking a turn
-													//(yes you can discriminate between them by considering the expected turning radius based on the speed and yaw Rate
-													// but that brings in another problem: now you have a source of error in the sideways acceleration that must be 
-													//taken into account somewhere down the line!)
-													// In a drone its easier because you can 
-													//take into account the bank angle (since drones and planes move by virtue of banking). The same is not valid for a car 
-													//and there fore it makes little sense to fuse data in the NED fashion (although I might do it in the future just for the 
-													//sake of it.
+		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because the car's motion is constrained. While you could compute the 
+								//Velocity in the NED fashion, it would be equivalent to going on a fools errand here. If there is a constraint, exploit it.
+
 		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
 		AccBias += (Vacc - Velocity)*VelGain*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
-
+		//this is the covariance stuff(using the corrected estimates to correct errors in states other than the one being corrected)
 		//distance moved in last cycle
 		dS = Velocity*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
 		Xacc = X + dS*cosmh + sinmh*OF_X; //estimated X position. OF_X is the sideways movement measured by the optical flow senosr(can't do that with a wheel encoder can you now?)
@@ -193,19 +186,43 @@ public :
 			3.2 - 3.4 = -0.2 
 			meaning that my current position estimate is shifted to 5 + (-0.2) = 4.8 meters.
 			*/
-			last_X = (longitude - lastLon)*DEG2METER + last_X;//getting the last gps position 
-			last_Y = (latitude - lastLat)*DEG2METER + last_Y; 
-			
-			lastLon = longitude;//setting lastLat, lastLon for next iteration
-			lastLat = latitude; 
+			float temp_X = last_X; //last corrected position estimates 
+			float temp_Y = last_Y; 
+
+			last_X = (lon - lastLon)*DEG2METER + last_X;//getting the last gps position 
+			last_Y = (lat - lastLat)*DEG2METER + last_Y; 
+
+			lastLon = lon;//setting lastLat, lastLon for next iteration
+			lastLat = lat; 
 
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
-			PosGain_X = (past_PosError_X / (past_PosError_X + Hdop)); //new position gain.
-			PosGain_Y = (past_PosError_Y / (past_PosError_Y + Hdop));
+			PosGain_X = (past_PosError_X / (past_PosError_X + Hdop)); //new position gain for X (East-West)
+			PosGain_Y = (past_PosError_Y / (past_PosError_Y + Hdop)); //new position gain for Y (North-South)
 
 			last_X = PosGain_X*last_X + (1-PosGain_X)*past_X; // past_X,past_Y are the past Estimates for position 
 			last_Y = PosGain_Y*last_Y + (1-PosGain_Y)*past_Y; // last_X,last_Y are the past corrected position 
 															  //(I didn't create separate variables for measurement because it seemed like a waste of memory)
+			
+			if(Velocity > 10)//explanation given in the codeblock itself.
+			{
+				GPS_Velocity = distancecalcy(last_X,temp_X,last_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from corrected estimates
+				GPS_SAcc = distancecalcy(PosError_X*(1-PosGain_X*0.5), 0, PosError_Y*(1-PosGain_Y*0.5), 0, 0)*GPS_UPDATE_RATE; //Velocity error = position error/dt . this is according to the correlation between speed and distance
+				//the velocity error is the average of the old position estimate error and the new position estimate error multiplied by the update rate. 
+				VelGain = (past_VelError/(past_VelError + GPS_SAcc)); //find the gain to correct the past estimate
+				last_Velocity = VelGain*GPS_Velocity + (1-VelGain)*past_Velocity;//correct the last velocity.
+				Velocity += (last_Velocity - past_Velocity);//shift the new velocity by the "innovation"
+				VelError *= (1-VelGain); //reduce the velocity error
+				past_VelError = VelError; //past Velocity error is the current velocity error now
+				//this is the "magical thing" about kfs that the kf boys(including myself) nut to before we sleep. 
+				//Not only is it correcting the position estimate(which is what you initially wanted), it is also correcting the velocity estimate by
+				//exploiting the relation between speed and position. Now the problem here is that if you're travelling at really slow speeds 
+				//by gps standards, ie, less than 10m/s, this correction might actually be counter-productive.
+				//consider the case of the car making a U turn of radius 1m at a speed of 2 m/s. this is well within the car's capabilities.
+				// However, the above calculations for speed use a straight line approximation which fails quite rapidly as you start considering low speed 
+				//cases. To solve this, you need to consider the change in the heading of the car, which further relies on the assumption that the 
+				//turning radius doesn't change which also fails quite rapidly at slow speeds. So you can see why there is an if condition to prevent us from 
+				//incorrectly exploiting the relationship between speed and position. The relations only hold when you're travelling fairly fast.
+			}
 
 			PosError_X *= (1 - PosGain_X); //reduce the position error after each correction from gps.
 			PosError_Y *= (1 - PosGain_Y); //this isn't exactly right(mathematically speaking) but then it would take too much memory 
@@ -215,21 +232,26 @@ public :
 
 			X += (last_X - past_X);
 			Y += (last_Y - past_Y); //shift by the difference between last corrected position and last estimated position.
-			
-			past_X = X; //the value of X,Y become the "past estimates" for the next iteration
-			past_Y = Y;
 
+			past_X = X; //the value of X,Y,V become the "past estimates"(=last predicted velocities) for the next iteration
+			past_Y = Y;
+			past_Velocity = Velocity;
 		}
 		if(position_reset && Hdop < 1.0 && tick)
 		{
-			lastLat = latitude;
-			lastLon = longitude;
+			lastLat = lat;
+			lastLon = lon;
 			last_X = past_X = X - Velocity*0.1*cosmh; //too dumb to solve this problem in a sophisticated manner 
 			last_Y = past_Y = Y - Velocity*0.1*sinmh;
+			past_Velocity = last_Velocity = Velocity; //initialize the "past_velocity"
+			past_VelError = VelError;
 			past_PosError_X = PosError_X;
 			past_PosError_Y = PosError_Y;
 
-			position_reset = false;
+			iLat = lat - Y*METER2DEG;
+			iLon = lon - X*METER2DEG;
+
+			position_reset = false;//prevent this code block from being re-executed
 		}
 		latitude = iLat + Y*METER2DEG;
 		longitude = iLon + X*METER2DEG;
