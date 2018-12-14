@@ -1,5 +1,8 @@
 #include"INOUT.h"
 
+#define CYCLE 20000 //cycle time
+#define CLOCK_SPEED 127 //128MHz clock speed
+
 volatile int32_t input_start,input[8],delT,reset_timer,tick=0;
 bool servoWrite = false;
 
@@ -9,15 +12,25 @@ void set_Outputs(float throttle, float steering) //throttle is between -100,100,
   int motor, servo;
   motor = int(throttle)*5 + 1500;
   servo = int(steering)*5 + 1500;
+  TIMER4_BASE->CNT = CYCLE;//this will reset the counter.
+  TIMER1_BASE->CNT = CYCLE;
   TIMER1_BASE->CCR1 = motor; //A8
   TIMER1_BASE->CCR4 = servo; //A11
+}
+
+void set_Outputs_Raw(int throttle, int steering)
+{
+  TIMER4_BASE->CNT = CYCLE;//this will reset the counter.
+  TIMER1_BASE->CNT = CYCLE;
+  TIMER1_BASE->CCR1 = throttle;
+  TIMER1_BASE->CCR4 = steering;
 }
 
 void get_Inputs(float I[8])
 {
   for(int i = 0;i<8;i++)
   {
-    I[i] = float(input[i]) - 1000.0f;
+    I[i] = float(input[i]);
   }
 }
 
@@ -55,7 +68,7 @@ void setup_esc_control()
   TIMER1_BASE->CCMR2 = (0b110 << 12) | TIMER_CCMR2_OC4PE;
   TIMER1_BASE->CCER = TIMER_CCER_CC1E | TIMER_CCER_CC4E;
   TIMER1_BASE->PSC = CLOCK_SPEED;
-  TIMER1_BASE->ARR = 2500;
+  TIMER1_BASE->ARR = CYCLE;//20ms update rate yo.
   TIMER1_BASE->DCR = 0;
   TIMER1_BASE->CCR1 = 1500;
   TIMER1_BASE->CCR4 = 1500;
