@@ -19,17 +19,26 @@
 #include"STATE.h"
 #include"CAR.h"
 #include"PARAMS.h"
+#include"TRAJECTORY.h"
 
 MPU9150 marg[2];
 OPFLOW opticalFlow;
 GPS gps;
 STATE car;
 GCS gcs;
+trajectory track;
 
 bool GPS_FIX;
 byte MODE = MODE_STANDBY;
 byte message;
 float inputs[8];
+int16_t num_waypoints=0;
+int16_t point = 0;
+int16_t sentinel = 0;
+bool circuit = false; //
+float dest_X,dest_Y,slope;
+
+coordinates *c;
 
 void setup() 
 {
@@ -95,9 +104,9 @@ void setup()
   {
     read_memory(0, A,G,M,T);
     marg[0].setOffset(A,G,M,T);
-
     read_memory(1, A,G,M,T);
     marg[1].setOffset(A,G,M,T);
+    gcs.Send_Offsets(marg[0].offsetA, marg[1].offsetA, marg[0].offsetG, marg[1].offsetG, marg[0].offsetM, marg[1].offsetM, marg[0].offsetT, marg[1].offsetT);
   }
   
   marg[0].Setup();
@@ -131,8 +140,8 @@ void loop()
   timer = micros();//this is to ensure that the cycle time remains constant at 2500us. How do I know it's not exceeding that limit? 
                     //I unit test each of the functions to check how much time they take to execute.
   //get sensor data
-  marg[0].compute_All(); //get AHRS from IMU1
-  marg[1].compute_All(); //get AHRS from IMU2
+  marg[0].compute_All(); //get AHRS (and other things as well) from IMU1
+  marg[1].compute_All(); //get AHRS (and other things as well) from IMU2
   MARG_FUSE(marg); //fuse their data. now you can pass any of the margs to other functions
   opticalFlow.updateOpticalFlow(); //update optical flow
   gps.localizer(); //update gps.
@@ -142,25 +151,87 @@ void loop()
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
   marg[0].V = marg[1].V = car.Velocity;
   marg[0].V_Error = marg[1].V_Error = car.VelError;
+  marg[0].bias = marg[1].bias = car.AccBias ; //transfer the bias. this is pretty much the reason why the update function does not take arguments by reference. its because the values need to be copied to 2 mpu objects anyway. 
 
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
   gcs.Send_State(MODE, car.latitude, car.longitude, car.Velocity, car.heading); //also regulated at 10Hz
-  if(message = MODE_ID)
+  
+  if(message == MODE_ID)
   {
     MODE = gcs.get_Mode();
   }
+  if(message == WP_ID)
+  {
+    if(num_waypoints==0)
+    {
+      num_waypoints = gcs.msg_len;//for WP, the msg_len is not the length of the received packet, its the number of waypoints that will be given to the car in totality.
+      c = new coordinates[num_waypoints]; //the first message will never contain the coordinates. this is because the waypoints may be marked or sent
+      point = 0;
+    }
+    else if(point < num_waypoints && num_waypoints !=0)//TODO : prevent people from sending more waypoints than num_waypoints
+    {
+      gcs.Get_WP(c[point].longitude, c[point].latitude);
+      c[point].calcXY(car.iLon, car.iLat);
+      point++;
+      if(point == num_waypoints)
+      {
+        if( check_loop(c[0],c[point]) ) //check if first and last points are within 1/2 a meter range
+        {
+          circuit = true;
+          c[point].copy(c[0]);
+        }
+        track.generate_Slopes(c,num_waypoints, circuit); // generate the slopes!TODO : prevent going out of track
+
+        dest_X = c[0].X;
+        dest_Y = c[0].Y;
+        slope  = c[0].slope;
+      }
+    }
+    else
+    {
+      //fucc
+    }
+  }
+  if(message == CLEAR_ID)
+  {
+    num_waypoints = 0;
+    point = 0;
+    sentinel = 0;
+    delete[] c; //clear all waypoints
+  }
+
+  if(message == MARK_ID)//TODO: if the waypoints are being marked, shouldn't we still check the looping condition?
+  {
+    c[point].X = car.X;
+    c[point].Y = car.Y;
+    c[point].calcLatLon(car.iLon, car.iLat);
+    point++;
+  }
+
+  if( distancecalcy(car.Y, dest_Y, car.X, dest_X,0) < WP_CIRCLE)
+  {
+    sentinel++;
+    dest_X = c[sentinel].X; //TODO : maybe just pass the object of the coordinate instead of transfering all the values manually.
+    dest_Y = c[sentinel].Y;
+    slope = c[sentinel].slope; 
+  }
+  
   get_Inputs(inputs); //get inputs from r/c receiver
 
   /*
    * ADD CODE FOR JEVOIS/COMPANION COMPUTER HERE 
   */
   
-  /*
-   * ADD switch case code here
-   */
+  if(MODE == CRUISE || MODE == LUDICROUS || num_waypoints !=0 )//autonomous modes
+  {
+    track.calculate_Curvatures(car.Velocity, car.X, car.Y, car.heading, dest_X, dest_Y, slope ); //TODO : find only local maxima not global maxima.
+    driver(track.C, track.braking_distance, car.Velocity, marg[0].yawRate, marg[0].La, marg[0].Ha, MODE, inputs); //send data to driver code.
+  }
+  if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY)//manual modes
+  {
+    float dum[] = {0.0,0.0};//dummy
+    driver(dum, 1000, car.Velocity, marg[0].yawRate, marg[0].La, marg[0].Ha, MODE, inputs);
+  }
   
-  while(micros()-timer < dt_micros ); //dt_micros is defined in 
+  while(micros()-timer < dt_micros ); //dt_micros is defined in PARAMS.h
 }
-
-
-
