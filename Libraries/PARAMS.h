@@ -9,24 +9,34 @@
 #define MODE_MANUAL 0x02
 #define MODE_PARTIAL 0X03
 #define MODE_AUTO 0x04
-#define MODE_NO_GPS 0x05
+#define MODE_AUTO_LUDICROUS 0x05
+#define MODE_NO_GPS 0x06
 
-#define START_SIGN 0X00FE
-#define OFFSET_ID 0x0001
-#define COMMAND_ID 0X0002
+#define LUDICROUS 0x05 //interchangable with MODE_AUTO_LUDICROUS
+#define CRUISE 0x04 //interchangable with MODE_AUTO
 
+#define START_SIGN 0XFE
+#define OFFSET_ID 0x01
+#define COMMAND_ID 0X02
+
+#define CONTROL_FREQUENCY 200
+#define FUTURE_TIME (float)2/CONTROL_FREQUENCY
+#define WP_CIRCLE 0.5 //1/2 meter radius around waypoint.
 
 #define WP_ID 0x0005
 #define STATE_ID 0x0006
 #define MODE_ID 0x0007
+#define CLEAR_ID 0x0008
+#define MARK_ID 0x0009
 
-#define GYRO_CAL 0xF000
-#define ACCEL_CAL 0xE000
-#define MAG_CAL 0xD000
+#define GYRO_CAL 0x10
+#define ACCEL_CAL 0x20
+#define MAG_CAL 0x30
+#define DONE 0x40
 
-#define ERROR_CODE 0xFFFF
+#define ERROR_CODE 0xFF
 
-#define COM_BAUD 115200
+#define COM_BAUD 230400
 #define GPS_BAUD 230400
 #define JEVOIS_BAUD 9600
 
