@@ -4,6 +4,7 @@
 #include"Arduino.h"
 #include"INOUT.h"
 #include"SIDMATH.h" //will need some math functions here yo.
+#include"PARAMS.h"
 
 
 #define WHEELBASE (float)0.254 //wheelbase in meters
@@ -13,6 +14,8 @@
 #define MAX_ACCELERATION (float)0.7*ABSOLUTE_MAX_ACCELERATION
 //maximum safe acceleration (omnidirectional) that the car can handle without any problems whatsoever 
 //for example braking and turning at the same time. keep this as ~70% of maximum friction force that the tires can provide
+#define SAFE_DECELERATION -0.4*MAX_ACCELERATION //the threshold deceleration for us to start braking. This is ~1/2 of the MAX_ACCELERATION 
+		//because weight shifting under braking is an absolute bitch when it comes to mid-CG rear wheel braking cars (mine for example)
 
 #define maxValue (int)2000
 #define minValue (int)1000
@@ -25,17 +28,11 @@
 #define BRAKE_GAIN (float)250/MAX_ACCELERATION //brake gain. Explained later.
 #define STEERING_OPEN_GAIN (float)STEERING_PULSE_LOCK2CENTER/STEERING_MAX //open loop gain between steering angle and pwm value. The relationship is assumed to be linear but is not and 
 #define STEERING_CLOSED_GAIN (float)0.7 //hence I use a closed loop gain as well to control the steering. This gain is based on "how fast can your steering turn lock to lock?"
-			//I will make it a little more generic so that ya'll can just put in your servo 
+			//I will make it a little more generic so that ya'll can just put in your servo specs
 			// (slightly inaccurate open + closed) loop control > mathematical model of the system. Why? because life is full of uncertainties.
 
-#define LUDICROUS 0x04
-#define CRUISE 0x03
-#define MANUAL_P 0x02
-#define MANUAL 0x01
-#define STOP 0x00
 
-
-float Curvature_To_Angle(float C);
+float Curvature_To_Angle(float C)
 {
 	if(mod(C)<1)
 	{
@@ -63,38 +60,76 @@ int limiter(float input) // prevent the values from going outside the 2000-1000u
 
 
 //the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
-void driver(float C, float V, float yawRate, float Ax, float Ay, uint8_t MODE) // function to operate the servo and esc.
+void driver(float C[2], float braking_distance, float V, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
 {
-	float deceleration, backoff, resultant, correction, yaw_Compensation, Vmax;
+	float deceleration, backoff, resultant, correction, yaw_Compensation, V_target, V_error;
+	int throttle = THROTTLENULL,steer = STEERINGNULL; //default values.
 	
 	resultant = sqrt(Ax*Ax + Ay*Ay); //resultant horizontal acceleration
-	correction = Curvature_To_Angle(C); //convert radius of curvature to steering angle. this actually depends on wheelbase.
-	yaw_Compensation = RAD2DEG*V*C; - yawRate;//Expected Yaw rate - measured Yaw rate. This is basically the error fed to the closed loop steering control
-	Vmax = sqrt(MAX_ACCELERATION/mod(C)); //max speed that we can hit. TODO : incorporate some way to slow down for a sharp turn beforehand.
+	correction = Curvature_To_Angle(C[0]); //convert radius of curvature to steering angle. this actually depends on wheelbase.
+	yaw_Compensation = RAD2DEG*V*C[0] - yawRate;//Expected Yaw rate - measured Yaw rate. This is basically the V_error fed to the closed loop steering control
+	
+	V_target = sqrt(MAX_ACCELERATION/mod(C[0])); //target maximum velocity
 
-
-	if(MODE == LUDICROUS)
+	if(C[1] < C[0]) //if the turning gets sharper, we have to brake a little early. if the turning doesn't get any sharper then no premature braking needed
 	{
-		if(Vmax>VMAX)//if maximum possible speed is more than the speed limit. This will happen on straights
+		//braking distance is how much distance we have in front of us to slow down.
+		float V1, deceleration_required;
+		V1 = sqrt(MAX_ACCELERATION/mod(C[1]));//max speed at the sharpest portion of the turn
+		
+		deceleration_required = V*(V1-V)/braking_distance; //dv/dt = (dv/dx)*(dx/dt) :P. faster than v^2 = u^2 + 2.a.S. note that this value will be -ve
+		//TODO : make deceleration required as positive. 
+		if(deceleration_required < SAFE_DECELERATION)//retardation required is more than the safe braking limit.
 		{
-			Vmax = VMAX; //speed setpoint is the speed limit.
+			V_target = V1; //set that velocity as the setpoint. This keeps happening until the deceleration_required is less than safety limit.
+		}
+	}
+
+	if(MODE == MODE_PARTIAL)
+	{
+		backoff = 20*(resultant - MAX_ACCELERATION);
+		if(backoff<0)
+			backoff = 0;
+		if(Ay>0) //Ay lmao we speeding up homie.
+			throttle = inputs[0] - backoff;
+		else
+			throttle = inputs[0] + backoff;
+
+		steer = inputs[1] + STEERING_CLOSED_GAIN*yaw_Compensation;
+		
+		set_Outputs_Raw(throttle,steer); //defined in INOUT
+
+		return; //return from here
+	}
+	else if(MODE == MODE_MANUAL)
+	{
+		set_Outputs_Raw(int(inputs[0]),int(inputs[1])); //pass through
+		return ; //GTFO 
+	}
+
+	else if(MODE == LUDICROUS)// should I rename this mode to be "LUCIFEROUS"?
+	{
+		if(V_target>VMAX)//if maximum possible speed is more than the speed limit. This will happen on straights
+		{
+			V_target = VMAX; //speed setpoint is the speed limit.
 		}
 	} 
 	else if(MODE == CRUISE)
 	{
-		if(Vmax>SAFE_SPEED)
+		if(V_target>SAFE_SPEED)
 		{
-			Vmax = SAFE_SPEED;
+			V_target = SAFE_SPEED;
 		}
 	}
-	else if(MODE == STOP)
+
+	else if(MODE == MODE_STOP)
 	{
-		Vmax = 0;
+		V_target = 0;
 	}
-	error = Vmax - V; //speed setpoint - current speed
-	if(error>=0)//Required velocity is greater than the current velocity
+	V_error = V_target - V; //speed setpoint - current speed
+	if(V_error>=0)//Required velocity is greater than the current velocity
 	{
-		if(Ha>0)//if we are already speeding up
+		if(Ay>0)//if we are already speeding up
 		{
 			backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
 			if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
@@ -106,11 +141,11 @@ void driver(float C, float V, float yawRate, float Ax, float Ay, uint8_t MODE) /
 		{
 			backoff = 0;
 		}
-		throttle = limiter(THROTTLENULL + OPEN_GAIN*Vmax + CLOSED_GAIN*error - backoff); //open loop + closed loop control for reducing error at a faster rate.
+		throttle = limiter(THROTTLENULL + OPEN_GAIN*V_target + CLOSED_GAIN*V_error - backoff); //open loop + closed loop control for reducing V_error at a faster rate.
 	}
-	if(error<0)//required velocity is less than current velocity.
+	if(V_error<0)//required velocity is less than current velocity.
 	{
-		if(Ha<0) //if we are already slowing down
+		if(Ay<0) //if we are already slowing down
 		{
 			backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
 			if(backoff<0)
@@ -123,7 +158,7 @@ void driver(float C, float V, float yawRate, float Ax, float Ay, uint8_t MODE) /
 			backoff = 0;
 		}
 		//TODO : improve this on the basis of how much braking distance we got left
-		deceleration = error*50 - Ha;//required deceleration - measured deceleration 
+		deceleration = V_error*50 - Ay;//required deceleration - measured deceleration 
 		if(deceleration<-10) //prevent reset windup
 		{
 			deceleration = -10;
@@ -134,6 +169,10 @@ void driver(float C, float V, float yawRate, float Ax, float Ay, uint8_t MODE) /
 	steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + STEERING_CLOSED_GAIN*yaw_Compensation); //open loop + closed loop control 
 
 	set_Outputs_Raw(throttle,steer); //defined in INOUT
+
+	return; //good practice
+
 }//140us
 
 
+#endif
