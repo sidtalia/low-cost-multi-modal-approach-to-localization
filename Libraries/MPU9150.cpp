@@ -99,10 +99,10 @@ bool MPU9150::initialize() //initialize the gyro with the apt scaling factors.
         break;
       }
     }
-    setFullScaleAccelRange(MPU9150_ACCEL_FS_2);
-    while(getFullScaleAccelRange() != MPU9150_ACCEL_FS_2 )
+    setFullScaleAccelRange(MPU9150_ACCEL_FS_8);
+    while(getFullScaleAccelRange() != MPU9150_ACCEL_FS_8 )
     {
-      setFullScaleAccelRange(MPU9150_ACCEL_FS_2);
+      setFullScaleAccelRange(MPU9150_ACCEL_FS_8);
       if(micros() - timeout>1000)
       {
         error_code += 1;
@@ -227,7 +227,8 @@ void MPU9150::gyro_caliberation()
 {
   //just leave the car stationary. the LED will blink once when the process begins, twice when it ends.
   blink(1);
-  float dummy[3];
+  float dummy[3] = {0,0,0};
+  float dummyT = 0;
   int i,j;
   for(i = 0;i<1000;i++)
   {
@@ -236,12 +237,14 @@ void MPU9150::gyro_caliberation()
     {
       dummy[j] += g[j];
     }
+    dummyT += t;
     delayMicroseconds(500); //give it some rest
   }
   for(j=0;j<3;j++)
   {
-    offsetG[j] = g[j]/1000;
+    offsetG[j] = dummy[j]/1000;
   }
+  offsetT = dummyT/1000;
   delay(1000);
   blink(2);
 }
@@ -250,7 +253,8 @@ void MPU9150::accel_caliberation()
 {
   //place the car on a roughly horizontal surface, wait for the led to blink twice, then thrice, then rotate the car 180 degrees within
   //5 seconds, the process repeats. 
-  float dummy[2][3];
+  float dummy[2][3] = {{0,0,0},
+                       {0,0,0}};
   int i,j,k;
   for(k = 0;k<2;k++)
   { 
@@ -262,7 +266,7 @@ void MPU9150::accel_caliberation()
       {
         dummy[k][j] += float(a[j])*0.001;
       }
-      delayMicroseconds(500);
+      delay(1);
     }
     blink(3);
     delay(5000);//should be enough time to change the orientation of the car.
@@ -287,7 +291,7 @@ void MPU9150::mag_caliberation()
   }
   blink(1);//indicate that the process has started
   delay(1000);
-  for(i=0;i<20000;i++) //20 seconds
+  for(i=0;i<200;i++) //20 seconds
   {
     readMag();
     for(j=0;j<3;j++)
@@ -310,7 +314,7 @@ void MPU9150::mag_caliberation()
   }
 }
 
-void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t offT) //remember that arrays are passed by address by default.
+void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT) //remember that arrays are passed by address by default.
 {
   for(int i=0;i<3;i++)
   {
@@ -321,7 +325,7 @@ void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t 
   offT = offsetT;
 }
 
-void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t offT)
+void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT)
 {
   for(int i=0;i<3;i++)
   {
@@ -380,8 +384,7 @@ float MPU9150::tilt_Compensate(float roll,float pitch) //function to compensate 
 
 void MPU9150::compute_All()
 { 
-  float pitch_Radians, roll_Radians, d_Yaw_Radians;
-  float diff;
+  float d_Yaw_Radians;
   float Anet;
   float trust,trust_1;
   bool mag_Read_Hua_Kya = false;
@@ -400,30 +403,32 @@ void MPU9150::compute_All()
   }
 
   readAll(mag_Read_Hua_Kya);//read the mag if the condition is true.
-  
-  roll  += G[1]*dt; 
-  roll_Radians = roll*DEG2RAD;
-  pitch_Radians = pitch*DEG2RAD;
-  float cosRoll = my_cos(roll_Radians);
-  float _sinRoll = -my_sin(roll_Radians);
+  //PREDICTION STEP (ROLL AND PITCH FIRST)
+  d_Yaw_Radians = G[2]*dt*DEG2RAD; //change in yaw around the car's Z axis (this is not the change in heading)
+  roll  += G[1]*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
+  float cosRoll = my_cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
+  float _sinRoll = -my_sin(roll*DEG2RAD);
+  //chaning the roll doesn't change the heading. Changing the pitch can change the heading.
+  //YES there will be some error in pitch that will cause an error in the roll, but consider this : the maximum error in pitch between 2 cycles 
+  //is ~2.5 degrees (1000 dps, 400Hz update rate). if the car is pitching at 1000dps, and say it's pitch is already at 50 degrees, then an error of 
+  //2.5 degrees makes little difference. Also, I highly doubt the car would actually be functioning at such ridiculous rotation rates (1000dps around each axis)
+  pitch += dt*(G[0]*cosRoll + G[2]*_sinRoll) + roll*d_Yaw_Radians  ; //compensates for the effect of yaw and roll on pitch
+  float cosPitch = my_cos(pitch*DEG2RAD);
+  float _sinPitch = -my_sin(pitch*DEG2RAD);
 
-  float cosPitch = my_cos(pitch_Radians);
-  float _sinPitch = -my_sin(pitch_Radians);
-
-  d_Yaw_Radians = G[2]*dt*DEG2RAD;
   //if the car is going around a banked turn, then the change in heading is not the same as yawRate*dt. P.S: cos is an even function.
   mh += dt*(G[2]*cosRoll +G[0]*_sinRoll); //compensates for pitch and roll of gyro(roll pitch compensation to the yaw).  
-  pitch += dt*(G[0]*cosRoll + G[2]*_sinRoll + roll*d_Yaw_Radians ) ; //compensates for the effect of yaw and pitch on pitch
-  roll -= pitch*d_Yaw_Radians ;//compensate for roll-pitch interchange due to pitch.
 
+  //INCREMENT ERROR
   pitch_Error += GYRO_VARIANCE; //increment the errors each cycle
   roll_Error += GYRO_VARIANCE;
   mh_Error += GYRO_VARIANCE;
 
+  //CORRECTION STEP AND REDUCING THE ERROR AFTER CORRECTION IN ROLL AND PITCH
   Anet = (A[0]*A[0] + A[1]*A[1] + A[2]*A[2]); //square of net acceleration.
-  trust = spike(G_SQUARED,Anet);
+  trust = spike(G_SQUARED,Anet);// spiky boi filter. basically the farther away the acceleration is from g, the lesser the trust.
   trust_1 = 1-trust;
- 
+  
   if( mod(A[1])<9 ) 
   {
     pitch = trust_1*pitch + trust*0.573*my_asin(A[1]*0.102); //0.102 = 1/9.8
@@ -444,7 +449,7 @@ void MPU9150::compute_All()
     mh += 360;
   }
   yawRate = G[2]; // yaw_Rate sent out.
-
+  //CORRECTION OF HEADING AND REDUCING ERROR AFTER CORRECTION.
   if( mag_Read_Hua_Kya )//check if mag has been read or not.
   { 
     readMag(); //read magnetometer 1. It takes 143us at 560KHz i2c Clock. 
@@ -457,6 +462,7 @@ void MPU9150::compute_All()
   }
 
   Ha = A[1]*cosPitch - bias; //this bias is taken from outside (sensor fusion with other sensors to correct velocity estimates) 
+  La = A[0]; //lateral acceleration. I m too lazy to make A[0] public so I transfer the value of A[0] to a public variable. 
   V += Ha*dt;
   V_Error += dt*(ACCEL_VARIANCE*cosPitch + Ha*_sinPitch*pitch_Error );
 }//570us worst case. 
@@ -465,8 +471,8 @@ void MPU9150::Setup()//initialize the state of the marg.
 {
   readAll(1); //read accel,gyro,mag 
   pitch = RAD2DEG*asin(A[1]*0.102); //0.102 = 1/9.8
-  roll  = -RAD2DEG*asin(A[0]*0.102);  //multiply by 57.3 to standardize roll and pitch into degrees 
-  mh = tilt_Compensate(roll*DEG2RAD,pitch*DEG2RAD); //roll, pitch have to be in radians
+  roll  = -RAD2DEG*asin(A[0]*0.102);   
+  mh = tilt_Compensate(roll*DEG2RAD,pitch*DEG2RAD); //find initial heading. Roll, pitch have to be in radians
   yawRate = G[2]; //initial YawRate of the car.
   stamp = millis(); //get first time stamp.
 }
@@ -529,8 +535,6 @@ void MARG_FUSE(MPU9150 marg[2])
     //cry me a river
   }
 }
-
-
 
 //TODO : an NED acceleration and velocity thingy for drone.
 //TODO : velocity estimator for car.
