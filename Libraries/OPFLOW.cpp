@@ -49,8 +49,6 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
   } 
 	else if(motion & 0x10)  //buffer overflow
 	{
-		int8_t dx = 0;   //caliberation for conversion to meters.   
-		int8_t dy = 0;
 		uint8_t surfaceQuality = 1;		
     X = 0.0;
     Y = 0.0;
