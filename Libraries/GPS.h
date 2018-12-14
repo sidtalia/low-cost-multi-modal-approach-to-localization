@@ -16,8 +16,6 @@
  * "10Hz update rate on ublox gps". I did makes some changes but they are just for my convenience. All credit for this stuff goes to him.
  */
 
- /* if you're using pixhawk based gps, white wire goes into the TXD, blue wire goes into RXD 
- */
 
 const unsigned char UBX_HEADER[] = { 0xB5, 0x62 };  //header of the incoming signal
 
@@ -40,7 +38,7 @@ class GPS
 public:
 	NAV_POSLLH posllh;
 	   //object of structure NAV_POSLLH
- 	float longitude,latitude,Hdop;
+ 	double longitude,latitude,Hdop;
  	bool tick,configured;
  	uint8_t config_msg_POSLLH[11] = {0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x02, 0x01, 0x0E, 0x47};
  	uint8_t config_msg_rate[14] = {0xB5, 0x62, 0x06, 0x08, 0x06, 0x00, 0x64, 0x00, 0x01, 0x00, 0x01, 0x00, 0x7A, 0x12};
@@ -52,10 +50,10 @@ public:
  	GPS()
  	{
  		tick = false;
- 		Hdop = 100000;
+ 		Hdop = 100000; //initial Hdop. This helps me differentiate whether data came in from gps or if gps has not even initialized yet.
  	}
 
-	void sendPacket(uint8_t *packet, byte len)
+	void sendPacket(uint8_t *packet, byte len) //send commands to gps for configuration purposes
 	{
 	    for (byte i = 0; i < len; i++)
 	    {
@@ -63,7 +61,7 @@ public:
 	    }
 	}
 
- 	void disableNmea()
+ 	void disableNmea() //diable the god awful NMEA messages. This code was copied from https://github.com/1oginov/UbxGps
 	{
 	    // Array of two bytes for CFG-MSG packets payload.
 	    byte messages[][2] = {
@@ -196,9 +194,9 @@ public:
 	}
 	inline void updategps()  //make sure that you have while(!processGPS()){} before calling this if you are relying on an update from this function
 	{
-	    longitude=float(posllh.lon)*0.0000001;
-	    latitude=float(posllh.lat)*0.0000001;
-	    Hdop=float(posllh.hAcc)*0.001; //HAcc in meters.
+	    longitude= double(posllh.lon)*1e-7;
+	    latitude= double(posllh.lat)*1e-7;
+	    Hdop= double(posllh.hAcc)*1e-3; //HAcc in meters.
 	}
 	void localizer() //function to figure out our original location. not inline because it is called only once
 	{
@@ -206,7 +204,7 @@ public:
 	  if(processGPS())
 	  {
 	    updategps();
-	    tick = true; // this tick is used to signify that new gps data has arrived. see the advantage of using global variables now?
+	    tick = true; // this tick is used to signify that new gps data has arrived.
 	  }
 	}
 
@@ -241,7 +239,7 @@ public:
 		return tick;
 	}
 
-	uint8_t fix_type()
+	int8_t fix_type()
 	{
 		while(!tick)
 		{	
@@ -272,15 +270,15 @@ public:
 		{
 			return 5;//dead accurate
 		}
-
+		return -1; //out of bound kind of answer
 	}
 
 	bool fix_initial_position()//get the averaged out value of position over a period of 1 second.
 	{
 
-		float estimate_HDOP;
-		float estimate_lat,estimate_long;
-		float gain;
+		double estimate_HDOP;
+		double estimate_lat,estimate_long;
+		double gain;
 		uint16_t timer,timeout;
 
 		localizer();
@@ -288,11 +286,11 @@ public:
 		estimate_HDOP = Hdop; 
 		estimate_long = longitude;
 		estimate_lat = latitude;
-		//this process should take about 16 seconds.
-		while(estimate_HDOP>0.0001) //this should take about 12 seconds tops
+		//this process should take about 16 seconds tops after the gps fix has been received..
+		while(estimate_HDOP>0.0001) 
 		{
 			localizer();
-			if( millis() - timer > 1500 ) //2 seconds
+			if( millis() - timer > 1500 ) //1.5 seconds
 			{
 				timer = millis(); //reset timer 
 
