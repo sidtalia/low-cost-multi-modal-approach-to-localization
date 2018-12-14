@@ -13,10 +13,8 @@ void setup_receiver_channels();
 
 void IO_init();
 void set_Outputs(float throttle, float steering);
+void set_Outputs_Raw(int throttle,int steering);
 void get_Inputs(float I[8]);
-
-
-
 
 void handler_channel_1(); //PA0
 
