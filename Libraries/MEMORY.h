@@ -28,16 +28,17 @@ void store_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int1
 
 bool check_memory()
 {
-	uint16_t data;
-	EEPROM.read(0,&data);
-	if(data)
+	uint16_t data[2];
+	EEPROM.read(0,&data[0]);
+	EEPROM.read(2,&data[1]);
+	if(data[0]!=data[1])
 	{
 		return 1;
 	}
 	return 0;
 }
 
-void read_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16_t offT)
+void read_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16_t &offT)
 {
 	uint16_t A[3],G[3],M[3],T;
 	uint16_t add = i*20;
