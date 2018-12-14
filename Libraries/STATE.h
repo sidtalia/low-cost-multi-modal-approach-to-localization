@@ -2,6 +2,7 @@
 #define _STATE_H_
 #include"SIDMATH.h"
 #include"PARAMS.h"
+#include"Arduino.h"
 
 #define DEFAULT_DT (float)0.0025
 #define GPS_UPDATE_RATE 10 //gps update rate in Hz
@@ -9,19 +10,20 @@
 class STATE
 {
 public :
-	float iLat,iLon,lastLat,lastLon;
-	float latitude, longitude, heading, Velocity, past_Velocity, last_Velocity,past_VelError, Acceleration;
+	double iLat,iLon,lastLat,lastLon, latitude, longitude; 
+	float heading, Velocity, past_Velocity, last_Velocity,past_VelError, Acceleration;
 	float X, last_X, past_X, past_PosError_X, Y, last_Y, past_Y, past_PosError_Y, PosError_X, PosError_Y, VelError;
 	float AccBias;
 	bool position_reset;
+	float drift_Angle;
 
-	void initialize(float lon,float lat,float Hdop, float head, float Vel, float acc)
+	void initialize(double lon,double lat,double Hdop, float head, float Vel, float acc)
 	{
 		iLat = lastLat = latitude = lat;
 		iLon = lastLon = longitude = lon;
 		X = last_X = past_X = 0;
 		Y = last_Y = past_Y = 0;
-		PosError_X = PosError_Y = Hdop;
+		PosError_X = PosError_Y = float(Hdop);
 		if(Hdop>100)
 		{
 			position_reset = true;//iLat and iLon will need to be reset later if gps becomes available mid-mission
@@ -37,9 +39,9 @@ public :
 		Velocity = past_Velocity = last_Velocity = Vel;
 		Acceleration = acc; //initially acc, vel should be close to 0
 	}
+
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
-	
-	void state_update(float lon, float lat, float tick,float Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
+	void state_update(double lon, double lat, bool tick,double Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
 						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error)
 	{
 		float cosmh = my_cos(mh*DEG2RAD);
@@ -155,9 +157,6 @@ public :
 
 		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
 		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
-		
-		
-		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 
 		X = X*PosGain_X + (1-PosGain_X)*Xacc;//in most implementations, you would see this happening through matrix multiplication. I hate that.
 		Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//Yes matrix multiplication makes it easier for programmers, but it makes it impossible to understand for 
@@ -189,15 +188,15 @@ public :
 			float temp_X = last_X; //last corrected position estimates 
 			float temp_Y = last_Y; 
 
-			last_X = (lon - lastLon)*DEG2METER + last_X;//getting the last gps position 
-			last_Y = (lat - lastLat)*DEG2METER + last_Y; 
+			last_X = float((lon - lastLon)*DEG2METER) + last_X;//getting the last gps position 
+			last_Y = float((lat - lastLat)*DEG2METER) + last_Y; 
 
 			lastLon = lon;//setting lastLat, lastLon for next iteration
 			lastLat = lat; 
 
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
-			PosGain_X = (past_PosError_X / (past_PosError_X + Hdop)); //new position gain for X (East-West)
-			PosGain_Y = (past_PosError_Y / (past_PosError_Y + Hdop)); //new position gain for Y (North-South)
+			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
+			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
 
 			last_X = PosGain_X*last_X + (1-PosGain_X)*past_X; // past_X,past_Y are the past Estimates for position 
 			last_Y = PosGain_Y*last_Y + (1-PosGain_Y)*past_Y; // last_X,last_Y are the past corrected position 
@@ -229,7 +228,7 @@ public :
 			past_PosError_Y = PosError_X;  //time every correction step. (there are 40 estimate steps between each correction step)
 										   //In my estimation, this should produce decent results too.
 			past_VelError = VelError; //past Velocity error is the current velocity error now
-			
+
 			X += (last_X - past_X);
 			Y += (last_Y - past_Y); //shift by the difference between last corrected position and last estimated position.
 
@@ -248,20 +247,20 @@ public :
 			past_PosError_X = PosError_X;
 			past_PosError_Y = PosError_Y;
 
-			iLat = lat - Y*METER2DEG;
-			iLon = lon - X*METER2DEG;
+			iLat = lat - double(Y*METER2DEG);
+			iLon = lon - double(X*METER2DEG);
 
 			position_reset = false;//prevent this code block from being re-executed
 		}
-		latitude = iLat + Y*METER2DEG;
-		longitude = iLon + X*METER2DEG;
+		latitude = iLat + double(Y*METER2DEG);
+		longitude = iLon + double(X*METER2DEG);
+
+		drift_Angle = (OF_V_X/Velocity); //uncomment when you have a quick atan function
+		return ;
 		//----------LOCALIZATION ENDS-------------------------------------
 	}//on an STM32F103C8T6 running at 128MHz clock speed, this function takes 60.61 us to execute and 44 bytes of extra memory for local variables.
 
 };
 //this class takes 80 bytes in variables
-
-
-
 
 #endif
