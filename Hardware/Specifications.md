@@ -17,7 +17,7 @@
 ## The autopilot : 
 1) The designs (obviously)
 2) 1 x STM32F103C8T6 (if you get the CBT6 that works too) and 1 x Pro mini.
-3) 2 x MPU9250s.
+3) 1 x MPU9250s.
 4) 1 x ADNS3080 optical flow sensor.
 5) 1 x Ublox M8N GPS (no config required, the code will do the config automatically for you).
 6) 1 x Jevois A33 (optional) and a usb mini-b male adapter.
