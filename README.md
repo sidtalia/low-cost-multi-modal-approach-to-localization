@@ -3,7 +3,7 @@
 DISCLAIMER : This project is not as generic as the arduRover project and is not trying to achieve the same goals, although it was inspired by it. The goal for this project is to understand 
 
 1) AHRS estimation, position estimation through EKFs
-2) Driving dynamics of cars and trajectory planning and execution (through motion predictive control).
+2) Driving dynamics of cars and trajectory planning and execution.
 
 The car will not operate without a GCS. This is for safety purposes and not for the sake of functionality. If the car were to operate without a GCS connection and only be in control of the user via the on board Radio control-receiver, there would be a single point of failure in communications. Adding the GCS-compulsion gives the system 2 independent points of failure. This also compulsorily limits the range of operation (which depends on the kind of transceiver used. For xbee pros, this range is ~80 meters, which is more than enough for doing experiments with a 1/10 scale car.)
 
