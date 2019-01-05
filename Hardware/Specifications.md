@@ -24,7 +24,7 @@
 7) 2 x Xbee Pro with Xbee pro adapter (one for the car and one for your computer).
 8) 1 x pwm to ppm converter (like the one used for Ardupilot).
 9) 1 x any radio control transmitter-receiver (for driving the car manually as well as failsafe).
-10) 1 x 5V/5A BEC (the one that you get from bang-good is just fine. It can actually only handle 3A without a voltage sag, but you can push it to 5. We won't actually need 5 A at all. We'll need ~1-1.2 A (this includes the current consumed by the jevois camera. If you're not using the jevois camera, the current consumption will be much lower, however I would still recommend using a separate BEC). The BEC
+10) 1 x 5V/5A BEC (the one that you get from bang-good is just fine. It can actually only handle 3A without a voltage sag, but you can push it to 5. We won't actually need 5 A at all. We'll need ~1-1.2 A (this includes the current consumed by the jevois camera. If you're not using the jevois camera, the current consumption will be much lower, however I would still recommend using a separate BEC).
 11) 1 x LED taken out from a computer mouse (please do not use a standard red LED. Just take the LED out from an old mouse. 
 12) 1 x dot board/Zero pcb, single core wires, solder, male headers.
 13) I might add more things for obstacle avoidance later. Right now I m considering the use of the camera itself to detect obstacles or run image segmentation
@@ -33,9 +33,9 @@
 1) The chassis and chassis brace drawings are .dwg files because it has no 3d features and you can do a cnc(1.5 mm offset) cut. If someone asks for it I will upload an stl file if you want to 3d print it
 2) The LED holder sits on top of the chassis above the slot. The holes have been cut into the chassis.
 3) the chassis brace has holes for mounting the container base. mount the container on the chassis brace before adding any components to the autopilot.
-4) the MPUs are to be situated at the converging end of the container. The optical flow is placed in the raised slot. The GPS is placed on the container top behind the jevois camera.
+4) the MPU is to be situated at the converging end of the container. The optical flow is placed in the raised slot. The GPS is placed on the container top behind the jevois camera.
 5) the xbee is situated near the motor, so is the BEC and the pro mini.
-6) The MPU is attached to pins B6 (SCL), B7 (SDA). One of the MPU's AD0 pin has to be connected to Vcc (5 V)
+6) The MPU is attached to pins B6 (SCL), B7 (SDA).
 7) The Optical flow is attached to pins PA4 (NSS) PA5 (SCK) PA6 (MISO) PA7 (MOSI) PB0 (RESET)
 8) The GPS is attached to PA2 (Tx, Rx of gps connected here) PA3 (Rx, Tx of gps connected here)
 9) The Xbee is connected to PA9, PA10. Create a 6 pin male header that can accept an FTDI converter and connect the Xbee (and only the xbee) with jumper wires that can be removed later).
