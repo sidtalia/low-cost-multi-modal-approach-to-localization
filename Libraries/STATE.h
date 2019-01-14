@@ -4,7 +4,7 @@
 #include"PARAMS.h"
 #include"Arduino.h"
 
-#define DEFAULT_DT (float)0.0025
+#define DEFAULT_DT dt
 #define GPS_UPDATE_RATE 10 //gps update rate in Hz
 
 class STATE
@@ -262,5 +262,8 @@ public :
 
 };
 //this class takes 80 bytes in variables
+
+
+
 
 #endif
