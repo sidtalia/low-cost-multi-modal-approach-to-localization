@@ -60,6 +60,7 @@ MPU9150::MPU9150() {
         xA[i][j] = yA[i][j] = 0; //initializing things from 0
       }
     }
+    return;
 }
 
 /** Specific address constructor.
@@ -75,6 +76,7 @@ MPU9150::MPU9150() {
 void MPU9150::setAddress(uint8_t address)//default constructor for initializing I2C address.
 {
   devAddr = address;
+  return;
 }
 
 /** Power on and prepare for general usage.
@@ -128,14 +130,17 @@ bool MPU9150::testConnection() {
 
 void MPU9150::setClockSource(uint8_t source) {
     I2Cdev::writeBits(devAddr, MPU9150_RA_PWR_MGMT_1, MPU9150_PWR1_CLKSEL_BIT, MPU9150_PWR1_CLKSEL_LENGTH, source);
+    return;
 }
 
 void MPU9150::setSleepEnabled(bool enabled) {
     I2Cdev::writeBit(devAddr, MPU9150_RA_PWR_MGMT_1, MPU9150_PWR1_SLEEP_BIT, enabled);
+    return;
 }
 
 void MPU9150::setFullScaleGyroRange(uint8_t range) {
     I2Cdev::writeBits(devAddr, MPU9150_RA_GYRO_CONFIG, MPU9150_GCONFIG_FS_SEL_BIT, MPU9150_GCONFIG_FS_SEL_LENGTH, range);
+    return;
 }
 
 uint8_t MPU9150::getFullScaleGyroRange() {
@@ -145,6 +150,7 @@ uint8_t MPU9150::getFullScaleGyroRange() {
 
 void MPU9150::setFullScaleAccelRange(uint8_t range) {
     I2Cdev::writeBits(devAddr, MPU9150_RA_ACCEL_CONFIG, MPU9150_ACONFIG_AFS_SEL_BIT, MPU9150_ACONFIG_AFS_SEL_LENGTH, range);
+    return;
 }
 
 uint8_t MPU9150::getFullScaleAccelRange() {
@@ -160,12 +166,16 @@ uint8_t MPU9150::getDeviceID() {
 void MPU9150::readMag()
 {
   byte buf[6];
-  I2Cdev::writeByte(devAddr,0x37,0x02);
-  I2Cdev::writeByte(0x0C, 0x0A, 0x01); //enable the magnetometer
-  I2Cdev::readBytes(0x0C, 0x03, 7, buf); // get 6 bytes of data
+
+  I2Cdev::readBytes(0x0C, 0x03, 6, buf); // get 6 bytes of data
   m[1] = (((int16_t)buf[1]) << 8) | buf[0]; // the mag has the X axis where the accelero has it's Y and vice-versa
   m[0] = (((int16_t)buf[3]) << 8) | buf[2]; // so I just do this switch over so that the math appears easier to me. 
   m[2] = (((int16_t)buf[5]) << 8) | buf[4];
+
+  I2Cdev::writeByte(devAddr,0x37,0x02);
+  I2Cdev::writeByte(0x0C, 0x0A, 0x01); //enable the magnetometer
+
+  return;
 }
 
 void MPU9150::readIMU()
@@ -184,6 +194,8 @@ void MPU9150::readIMU()
   g[0]=Wire.read()<<8|Wire.read();  
   g[1]=Wire.read()<<8|Wire.read();
   g[2]=Wire.read()<<8|Wire.read();
+
+  return;
 }
 
 void MPU9150::getMotion6(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz) {
@@ -196,20 +208,20 @@ void MPU9150::getMotion6(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int
     *gz = (((int16_t)buffer[12]) << 8) | buffer[13];
 }
 
-void MPU9150::getMotion9(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, uint16_t* mx, uint16_t* my, uint16_t* mz) {
+void MPU9150::getMotion9(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, int16_t* mx, int16_t* my, int16_t* mz) {
 
     //get accel and gyro
     getMotion6(ax, ay, az, gx, gy, gz);
-
-    //read mag
     I2Cdev::writeByte(devAddr, MPU9150_RA_INT_PIN_CFG, 0x02); //set i2c bypass enable pin to true to access magnetometer
     delay(10);
     I2Cdev::writeByte(MPU9150_RA_MAG_ADDRESS, 0x0A, 0x01); //enable the magnetometer
     delay(10);
+    //read mag
     I2Cdev::readBytes(MPU9150_RA_MAG_ADDRESS, MPU9150_RA_MAG_XOUT_L, 6, buffer);
-    *mx = (((uint16_t)buffer[0]) << 8) | buffer[1];
-    *my = (((uint16_t)buffer[2]) << 8) | buffer[3];
-    *mz = (((uint16_t)buffer[4]) << 8) | buffer[5];
+    *mx = (((uint16_t)buffer[1]) << 8) | buffer[0];
+    *my = (((uint16_t)buffer[3]) << 8) | buffer[2];
+    *mz = (((uint16_t)buffer[5]) << 8) | buffer[4];
+
 }
 
 void MPU9150::blink(int8_t n)
@@ -221,6 +233,8 @@ void MPU9150::blink(int8_t n)
     digitalWrite(MPU_LED,0);
     delay(500);
   }
+
+  return;
 }
 
 void MPU9150::gyro_caliberation()
@@ -239,6 +253,7 @@ void MPU9150::gyro_caliberation()
     }
     dummyT += t;
     delayMicroseconds(500); //give it some rest
+    // Serial.println(g[0]);//debug
   }
   for(j=0;j<3;j++)
   {
@@ -247,6 +262,7 @@ void MPU9150::gyro_caliberation()
   offsetT = dummyT/1000;
   delay(1000);
   blink(2);
+  return;
 }
 
 void MPU9150::accel_caliberation()
@@ -267,6 +283,7 @@ void MPU9150::accel_caliberation()
         dummy[k][j] += float(a[j])*0.001;
       }
       delay(1);
+      // Serial.println(a[0]);
     }
     blink(3);
     delay(5000);//should be enough time to change the orientation of the car.
@@ -275,6 +292,8 @@ void MPU9150::accel_caliberation()
   {
     offsetA[i] = (dummy[0][i]+dummy[1][i])/2;//got the offsets!
   }
+
+  return;
 }
 
 void MPU9150::mag_caliberation()
@@ -284,16 +303,16 @@ void MPU9150::mag_caliberation()
   //point the nose of the car in the EW direction, rotate the car around the longitudenal axis of the car until you see
   //the MPU LED blink twice
   int16_t i,j,oldmax[3],oldmin[3];
-  readMag();
+  getMotion9(&a[0],&a[1],&a[2],&g[0],&g[1],&g[2],&m[1],&m[0],&m[2]);
   for(j=0;j<3;j++)
   {
     oldmin[j]=oldmax[j] = m[j];
   }
   blink(1);//indicate that the process has started
   delay(1000);
-  for(i=0;i<200;i++) //20 seconds
+  for(i=0;i<800;i++) //16 seconds
   {
-    readMag();
+    getMotion9(&a[0],&a[1],&a[2],&g[0],&g[1],&g[2],&m[1],&m[0],&m[2]);
     for(j=0;j<3;j++)
     {
       if (oldmax[j] < m[j])
@@ -305,13 +324,18 @@ void MPU9150::mag_caliberation()
         oldmin[j] = m[j];
       }//basically finding the min max values of each field and then taking an average.
     }
-    delay(10);//mag needs some delay
+    // Serial.println(m[0]);
+    digitalWrite(MPU_LED,1); //visual indication
+    delay(20);
+    digitalWrite(MPU_LED,0);
   }
   blink(2);
   for(j=0;j<3;j++)
   {
-    offsetM[j] = float(oldmin[j]+oldmax[j])/2;
+    offsetM[j] = (oldmin[j]+oldmax[j])/2;
   }
+
+  return;
 }
 
 void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT) //remember that arrays are passed by address by default.
@@ -323,6 +347,7 @@ void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t 
     offM[i] = offsetM[i];
   }
   offT = offsetT;
+  return;
 }
 
 void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT)
@@ -334,6 +359,7 @@ void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t 
     offsetM[i] = offM[i];
   }
   offsetT = offT;
+  return;
 }
 
 void MPU9150::readAll(bool mag_Read_Karu_Kya)
@@ -344,7 +370,7 @@ void MPU9150::readAll(bool mag_Read_Karu_Kya)
     A[i] = float(a[i] - offsetA[i])*ACCEL_SCALING_FACTOR;
     A[i] = filter_accel(i,A[i]);
 
-    G[i] = float(g[i] - offsetG[i])*GYRO_SCALING_FACTOR;
+    G[i] = float(g[i] - offsetG[i])*GYRO_SCALING_FACTOR - temp_Compensation(t);
     G[i] = filter_gyro(lastG[i],G[i]);
     lastG[i] = G[i];
   }
@@ -356,6 +382,7 @@ void MPU9150::readAll(bool mag_Read_Karu_Kya)
       M[i] = (float)(m[i] - offsetM[i]);
     }
   }
+  return;
 }
 
 float MPU9150::tilt_Compensate(float roll,float pitch) //function to compensate the magnetometer readings for the pitch and the roll.
@@ -368,19 +395,38 @@ float MPU9150::tilt_Compensate(float roll,float pitch) //function to compensate 
   //the following formula is compensates for the pitch and roll of the object when using magnetometer reading. 
   float Xh = -M[0]*cosRoll + M[2]*sinRoll;
   float Yh = M[1]*cosPitch - M[0]*sinRoll*sinPitch + M[2]*cosRoll*sinPitch;
-  
+  float mag = 0.6805*sqrt(M[0]*M[0] + M[1]*M[1] + M[2]*M[2]);
+
   Xh = Xh*0.2 + 0.8*magbuf[0]; //smoothing out the X readings
   magbuf[0] = Xh;
 
+  mag_mag = max(mag_mag,mag);
+
   Yh = Yh*0.2 + 0.8*magbuf[1]; //smoothing out the Y readings
   magbuf[1] = Yh;
-  heading = 57.3*atan2(Yh,Xh);
+  heading = RAD2DEG*atan2(Yh,Xh);
+
+  del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45 - roll) ) );
+
+  mag_gain = 0.1*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
+
+  if(mh > 180 && mh < 360)
+  {
+    del = 360 - del;
+  }
+
   if(heading<0) //atan2 goes from -pi to pi 
   {
     return 360 + heading; //2pi - theta
   }
+
+  if(mh < 310 && mh > 50 && mh <130 && mh > 230)
+  {
+    heading = del*(1-mag_gain) + mag_gain*heading;
+  }
+
   return heading;
-}//643us worst case 
+}//800us worst case on arduino uno 16mhz 8 bit. 800/13.85 on stm32f103c8t6
 
 void MPU9150::compute_All()
 { 
@@ -393,10 +439,11 @@ void MPU9150::compute_All()
   
   if(failure)
   {
-    return; //break it off right here
+    initialize(); //413us penalty.
+    return; //break it off right here. take a break. have a kit kat.
   }
 
-  if(millis() - stamp>10) //more than 10ms have passed since last mag read
+  if(millis() - stamp>10) //more than 10ms have passed since last mag read. maintain 100hz update rate.
   {
     stamp = millis();
     mag_Read_Hua_Kya = true;
@@ -404,6 +451,7 @@ void MPU9150::compute_All()
 
   readAll(mag_Read_Hua_Kya);//read the mag if the condition is true.
   //PREDICTION STEP (ROLL AND PITCH FIRST)
+  G[2] -= gyro_Bias;
   d_Yaw_Radians = G[2]*dt*DEG2RAD; //change in yaw around the car's Z axis (this is not the change in heading)
   roll  += G[1]*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
   float cosRoll = my_cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
@@ -431,12 +479,12 @@ void MPU9150::compute_All()
   
   if( mod(A[1])<9 ) 
   {
-    pitch = trust_1*pitch + trust*0.573*my_asin(A[1]*0.102); //0.102 = 1/9.8
+    pitch = trust_1*pitch + trust*57.3*my_asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
     pitch_Error *= trust_1; //reduce the error everytime you make a correction
   }
   if( mod(A[0])<9 )
   {
-    roll  = trust_1*roll  - trust*0.573*my_asin(A[0]*0.102); //using the accelerometer to correct the roll and pitch.
+    roll  = trust_1*roll  - trust*57.3*my_asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
     roll_Error *= trust_1;
   }
 
@@ -446,41 +494,49 @@ void MPU9150::compute_All()
   }
   if(mh < 0)
   {
-    mh += 360;
+    mh += 360.0;
   }
   yawRate = G[2]; // yaw_Rate sent out.
-  //CORRECTION OF HEADING AND REDUCING ERROR AFTER CORRECTION.
+  // CORRECTION OF HEADING AND REDUCING ERROR AFTER CORRECTION.
   if( mag_Read_Hua_Kya )//check if mag has been read or not.
   { 
-    readMag(); //read magnetometer 1. It takes 143us at 560KHz i2c Clock. 
     if(mh>20.0&&mh<340.0&&yawRate<100) //range of angles where the magnetometer is reliable against the external interference from the motor.
     {//also, if the car is rotating really quickly, the time difference between when i ping the mag and when i get the results is significant, so
       //the mag is only reliable when i m rotating slowly.
-      mh = 0.9*mh + 0.1*tilt_Compensate(roll*DEG2RAD, pitch*DEG2RAD); //TODO: make this dynamic depending on how much interference there is.
-      mh_Error *= 0.9; //reduce the error.
-    }//193us 
+      float mag_head = tilt_Compensate(roll*DEG2RAD, pitch*DEG2RAD);
+      float innovation = mh;
+      mh = (1-mag_gain)*mh + mag_gain*mag_head; //TODO: make this dynamic depending on how much interference there is.
+      innovation -= mh; //actual innovation
+      mh_Error *= (1-mag_gain); //reduce the error.
+      gyro_Bias += mag_gain*innovation;
+    }//200us 
   }
 
   Ha = A[1]*cosPitch - bias; //this bias is taken from outside (sensor fusion with other sensors to correct velocity estimates) 
   La = A[0]; //lateral acceleration. I m too lazy to make A[0] public so I transfer the value of A[0] to a public variable. 
   V += Ha*dt;
   V_Error += dt*(ACCEL_VARIANCE*cosPitch + Ha*_sinPitch*pitch_Error );
+
+  return;
 }//570us worst case. 
 
 void MPU9150::Setup()//initialize the state of the marg.
 {
   readAll(1); //read accel,gyro,mag 
-  pitch = RAD2DEG*asin(A[1]*0.102); //0.102 = 1/9.8
-  roll  = -RAD2DEG*asin(A[0]*0.102);   
+  delay(10);
+  readAll(1);
+  pitch = RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
+  roll  = -RAD2DEG*asin(A[0]*G_INVERSE);   
   mh = tilt_Compensate(roll*DEG2RAD,pitch*DEG2RAD); //find initial heading. Roll, pitch have to be in radians
   yawRate = G[2]; //initial YawRate of the car.
   stamp = millis(); //get first time stamp.
+  return;
 }
 
 float MPU9150::filter_gyro(float mean, float x)
 {
   float i =  x - mean;//innovation
-  i *= (i*i)/(10*GYRO_SCALING_FACTOR + (i*i) ); //notch filter around the mean value.
+  i *= (i*i)/(1000*GYRO_SCALING_FACTOR + (i*i) ); //notch filter around the mean value.
   return mean + i;
 }
 
@@ -493,48 +549,53 @@ float MPU9150::filter_accel(int i,float x)
   return yA[i][1];
 }
 
-void MARG_FUSE(MPU9150 marg[2])
+float MPU9150::temp_Compensation(int16_t temp)
 {
-  if(marg[0].failure + marg[0].failure == 0 )//neither of them failed
-  {
-    Fuse( marg[0].roll, marg[0].roll_Error, marg[1].roll, marg[1].roll_Error);
-    Fuse( marg[0].pitch, marg[0].pitch_Error, marg[1].pitch, marg[1].pitch_Error);
-    Fuse( marg[0].mh, marg[0].mh_Error, marg[1].mh, marg[1].mh_Error);
-    Fuse( marg[0].V, marg[0].V_Error, marg[1].V, marg[1].V_Error); 
-  }
-  if(marg[0].failure)
-  {
-    marg[0].roll = marg[1].roll;
-    marg[0].roll_Error = marg[1].roll_Error;
-
-    marg[0].pitch = marg[1].pitch;
-    marg[0].pitch_Error = marg[1].pitch_Error;
-
-    marg[0].mh = marg[1].mh;
-    marg[0].mh_Error = marg[1].mh_Error;
-
-    marg[0].V = marg[1].V;
-    marg[0].V_Error = marg[1].V_Error;
-  }
-  if(marg[1].failure)
-  {
-    marg[1].roll = marg[0].roll;
-    marg[1].roll_Error = marg[0].roll_Error;
-
-    marg[1].pitch = marg[0].pitch;
-    marg[1].pitch_Error = marg[0].pitch_Error;
-
-    marg[1].mh = marg[0].mh;
-    marg[1].mh_Error = marg[0].mh_Error;
-
-    marg[1].V = marg[0].V;
-    marg[1].V_Error = marg[0].V_Error;
-  }
-  else if (marg[0].failure && marg[1].failure)
-  {
-    //cry me a river
-  }
+  return GYRO_SCALING_FACTOR*TEMP_COMP*(temp - offsetT);
 }
 
+
+// void MARG_FUSE(MPU9150 marg[2])
+// {
+//   if(marg[0].failure + marg[0].failure == 0 )//neither of them failed
+//   {
+//     Fuse( marg[0].roll, marg[0].roll_Error, marg[1].roll, marg[1].roll_Error);
+//     Fuse( marg[0].pitch, marg[0].pitch_Error, marg[1].pitch, marg[1].pitch_Error);
+//     Fuse( marg[0].mh, marg[0].mh_Error, marg[1].mh, marg[1].mh_Error);
+//     Fuse( marg[0].V, marg[0].V_Error, marg[1].V, marg[1].V_Error); 
+//   }
+//   if(marg[0].failure)
+//   {
+//     marg[0].roll = marg[1].roll;
+//     marg[0].roll_Error = marg[1].roll_Error;
+
+//     marg[0].pitch = marg[1].pitch;
+//     marg[0].pitch_Error = marg[1].pitch_Error;
+
+//     marg[0].mh = marg[1].mh;
+//     marg[0].mh_Error = marg[1].mh_Error;
+
+//     marg[0].V = marg[1].V;
+//     marg[0].V_Error = marg[1].V_Error;
+//   }
+//   if(marg[1].failure)
+//   {
+//     marg[1].roll = marg[0].roll;
+//     marg[1].roll_Error = marg[0].roll_Error;
+
+//     marg[1].pitch = marg[0].pitch;
+//     marg[1].pitch_Error = marg[0].pitch_Error;
+
+//     marg[1].mh = marg[0].mh;
+//     marg[1].mh_Error = marg[0].mh_Error;
+
+//     marg[1].V = marg[0].V;
+//     marg[1].V_Error = marg[0].V_Error;
+//   }
+//   else if (marg[0].failure && marg[1].failure)
+//   {
+//     //cry me a river
+//   }
+// }
 //TODO : an NED acceleration and velocity thingy for drone.
-//TODO : velocity estimator for car.
+//TODO : velocity estimator for car using gyro and accelero
