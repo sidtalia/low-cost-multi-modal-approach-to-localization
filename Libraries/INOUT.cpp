@@ -38,26 +38,6 @@ void setup_esc_control()
 {  
   pinMode(PA8, PWM); //using only PA8 and PA11
   pinMode(PA11, PWM);
-  
-  // if(howmany == 4)//for dronewa
-  // {
-  //   pinMode(PB8, PWM);
-  //   pinMode(PB9, PWM);
-    
-  //   TIMER4_BASE->CR1 = TIMER_CR1_CEN | TIMER_CR1_ARPE;
-  //   TIMER4_BASE->CR2 = 0;
-  //   TIMER4_BASE->SMCR = 0;
-  //   TIMER4_BASE->DIER = 0;
-  //   TIMER4_BASE->EGR = 0;
-  //   TIMER4_BASE->CCMR1 = 0;
-  //   TIMER4_BASE->CCMR2 = (0b110 << 4) | TIMER_CCMR2_OC3PE |(0b110 << 12) | TIMER_CCMR2_OC4PE;
-  //   TIMER4_BASE->CCER = TIMER_CCER_CC3E | TIMER_CCER_CC4E;
-  //   TIMER4_BASE->PSC = CLOCK_SPEED;
-  //   TIMER4_BASE->ARR = 2500;
-  //   TIMER4_BASE->DCR = 0;
-  //   TIMER4_BASE->CCR3 = 1000;
-  //   TIMER4_BASE->CCR4 = 1000;
-  // }
 
   TIMER1_BASE->CR1 = TIMER_CR1_CEN | TIMER_CR1_ARPE;
   TIMER1_BASE->CR2 = 0;
