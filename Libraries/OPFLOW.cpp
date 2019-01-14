@@ -3,7 +3,7 @@
 #include"Arduino.h"
 #include<SPI.h>
 
-#define Frequency 400 //dt is defined in PARAMS.h
+#define Frequency 1/dt //dt is defined in PARAMS.h
 
 
 SPISettings spiSettings(2e6, MSBFIRST, SPI_MODE3);    // 2 MHz, mode 3
