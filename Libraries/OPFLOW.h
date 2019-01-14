@@ -28,8 +28,8 @@
 #define SS_PIN PA4
 
 #define DEFAULT_CALIB (float)0.00043
-#define DEFAULT_DT (float)0.0025
-#define DEFAULT_FREQ (float)400.0
+#define DEFAULT_DT dt
+#define DEFAULT_FREQ 1/dt
 /*
 usage : 
 	OPFLOW obj;
