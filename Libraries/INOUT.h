@@ -5,8 +5,6 @@
 
 #define CLOCK_SPEED 127
 
-// volatile int32_t input_start,input[8],delT,reset_timer,tick=0;
-// bool servoWrite = false;
 void setup_esc_control();
 
 void setup_receiver_channels();
