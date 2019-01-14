@@ -27,7 +27,7 @@ public:
 	  }
 	}
 
-	bool Get_Offsets(int16_t A1[3], int16_t A2[3], int16_t G1[3], int16_t G2[3], int16_t M1[3], int16_t M2[3], int16_t &T1, int16_t &T2)
+	bool Get_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t &T)
 	{
 		uint8_t i;
 		int16_t START_ID, message_ID, len,mode;
@@ -46,19 +46,15 @@ public:
 				len = Serial.read()|int16_t(Serial.read()<<8); //length of packet 40 bytes
 				message_ID = Serial.read()|int16_t(Serial.read()<<8);
 				mode = Serial.read()|int16_t(Serial.read()<<8);
-				if(message_ID==OFFSET_ID && len == 48)//confirm that you are getting the offsets and nothing else.
+				if(message_ID==OFFSET_ID && len == 28)//confirm that you are getting the offsets and nothing else.
 				{
 					for(i=0;i<3;i++)//computer has offsets
 					{
-						A1[i] = Serial.read()|int16_t(Serial.read()<<8);
-						A2[i] = Serial.read()|int16_t(Serial.read()<<8);
-						G1[i] = Serial.read()|int16_t(Serial.read()<<8);
-						G2[i] = Serial.read()|int16_t(Serial.read()<<8);
-						M1[i] = Serial.read()|int16_t(Serial.read()<<8);
-						M2[i] = Serial.read()|int16_t(Serial.read()<<8);
+						A[i] = Serial.read()|int16_t(Serial.read()<<8);
+						G[i] = Serial.read()|int16_t(Serial.read()<<8);
+						M[i] = Serial.read()|int16_t(Serial.read()<<8);
 					}
-					T1 = Serial.read()|int16_t(Serial.read()<<8);
-					T2 = Serial.read()|int16_t(Serial.read()<<8);
+					T = Serial.read()|int16_t(Serial.read()<<8);
 					return 1;
 				}
 				else
@@ -74,24 +70,20 @@ public:
 		return 0;
 	} //
 
-	void Send_Offsets(int16_t A1[3], int16_t A2[3], int16_t G1[3], int16_t G2[3], int16_t M1[3], int16_t M2[3], int16_t T1, int16_t T2)
+	void Send_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t T)
 	{
 		uint8_t i;
 		write_To_Port(START_SIGN,2);
-		write_To_Port(48,2);
+		write_To_Port(28,2);
 		write_To_Port(OFFSET_ID,2);
 		write_To_Port(0x01,2);//mode
 		for(i=0;i<3;i++)
 		{
-			write_To_Port(A1[i],2);
-			write_To_Port(A2[i],2);
-			write_To_Port(G1[i],2);
-			write_To_Port(G2[i],2);
-			write_To_Port(M1[i],2);
-			write_To_Port(M2[i],2);	
+			write_To_Port(A[i],2);
+			write_To_Port(G[i],2);
+			write_To_Port(M[i],2);
 		}
-		write_To_Port(T1,2);
-		write_To_Port(T2,2);
+		write_To_Port(T,2);
 	}//42 bytes sent
 
 	void Get_WP(double &X, double &Y)
@@ -132,22 +124,24 @@ public:
 	}//2 bytes
 
 	// void send_heartbeat(); 
-	void Send_State(byte mode,double lon, double lat, float vel, float heading)//position(2), speed(1), heading(1), acceleration(1), Position Error
+	void Send_State(byte mode,double lon, double lat, float vel, float heading, float pitch, float roll)//position(2), speed(1), heading(1), acceleration(1), Position Error
 	{
 		if(millis() - transmit_stamp > 100)
 		{
 			transmit_stamp = millis();
-			long out[4];
+			long out[6];
 			out[0] = lon*1e7;
 			out[1] = lat*1e7;//hopefully this is correct
 			out[2] = vel*100;
 			out[3] = heading*100;
+			out[4] = pitch*100;
+			out[5] = roll*100;
 
 			write_To_Port(START_SIGN,2);
 			write_To_Port(18,2);
 			write_To_Port(STATE_ID,2);
 			write_To_Port(int16_t(mode),2);
-			for(int i=0;i<4;i++)
+			for(int i=0;i<6;i++)
 			{
 				write_To_Port(out[i],4);
 			}
