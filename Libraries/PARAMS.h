@@ -12,15 +12,18 @@
 #define MODE_AUTO_LUDICROUS 0x05
 #define MODE_NO_GPS 0x06
 
+#define FIX_TIMEOUT 1000
+
 #define LUDICROUS 0x05 //interchangable with MODE_AUTO_LUDICROUS
 #define CRUISE 0x04 //interchangable with MODE_AUTO
 
-#define START_SIGN 0XFE
+#define START_SIGN 0xFE
 #define OFFSET_ID 0x01
 #define COMMAND_ID 0X02
 
 #define CONTROL_FREQUENCY 200
 #define FUTURE_TIME (float)2/CONTROL_FREQUENCY
+#define CONTROL_TIME (int)1000/CONTROL_FREQUENCY //control time in ms
 #define WP_CIRCLE 0.5 //1/2 meter radius around waypoint.
 
 #define WP_ID 0x0005
