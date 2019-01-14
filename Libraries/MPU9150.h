@@ -479,10 +479,10 @@ sanity check : marg.failure ? initialize() : do nothing
 #define GYRO_VARIANCE (float)GYRO_SCALING_FACTOR*0.0025 //default.
 #define ACCEL_VARIANCE (float)0.1 //0.1m/s*s error.
 
-#define G_SQUARED (float)96.2361
+#define G_SQUARED (float)96.2361 
 
-#define DEFAULT_DT (float)0.0025 //cycle time. anything less and you end up losing reliability. 
-
+#define TEMP_COMP -0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
+                        //this is valid only for 1000dps gyro scaling and is applied directly to temp readings (no scaling etc req.)
 //aaah. so much cleaner.
 
 class MPU9150 {
@@ -505,7 +505,7 @@ class MPU9150 {
         void readMag(); //reading the magnetometer efficiently.
         void readIMU(); //reading the acc/gyro efficiently.
         void getMotion6(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz);//for the sake of compatibility.
-        void getMotion9(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, uint16_t* mx, uint16_t* my, uint16_t* mz);
+        void getMotion9(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, int16_t* mx, int16_t* my, int16_t* mz);
         
         void blink(int8_t n); //for status of marg
         void gyro_caliberation();//for gyro caliberation. just let the car sit.
@@ -520,22 +520,25 @@ class MPU9150 {
         float tilt_Compensate(float roll,float pitch); //get the tilt compensated magnetometer heading, returns a number between 0/360.
         void compute_All(); //computes the state of the marg during runtime.
         void Setup(); //initialize the state of the marg.
+        float temp_Compensation(int16_t temp);
 
         float roll,pitch,yawRate,mh;
         float roll_Error,pitch_Error,mh_Error;
-        float magbuf[2];
+        float magbuf[2],mag_gain;
         float del;//difference in angle between when the magnetometer was called and when it actually replied.
         float Ha,V,bias,La;
         float V_Error;
         int16_t offsetA[3],offsetG[3],offsetM[3],offsetT;//offsets need to be saved you know.
         uint8_t error_code;
         bool failure;
-
+        float mag_mag;
+        
     private:
         uint8_t devAddr; //device address
         uint8_t buffer[14]; //communication buffer
-        int16_t a[3],g[3],m[3],t; //acceleration,gyration, magnetometer readings and temperature : RAW
         float A[3],G[3],M[3],T; // noise and offset removed acceleration,gyration, magnetometer and temp
+        int16_t a[3],g[3],m[3],t; //acceleration,gyration, magnetometer readings and temperature : RAW
+        float gyro_Bias;
         float lastG[3];//for filtering purposes.
         float xA[3][2],yA[3][2];//for accel low pass filter
         float filter_accel(int i,float input);
