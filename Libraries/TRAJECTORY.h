@@ -3,6 +3,7 @@
 
 #include"Arduino.h"
 #include"SIDMATH.h"
+#include"PARAMS.h"
 
 class coordinates //for storing multiple coordinates as we further progress to multiple waypoint trajectories instead of just 1 waypoint
 {                               //this will become the main point of focus once the basic tasks are complete
