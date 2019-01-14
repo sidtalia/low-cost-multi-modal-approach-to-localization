@@ -546,6 +546,4 @@ class MPU9150 {
         long stamp; //time stamp
 };
 
-void MARG_FUSE(MPU9150 marg[2]);//most likely only 2 margs
-
 #endif /* _MPU9150_H_ */
