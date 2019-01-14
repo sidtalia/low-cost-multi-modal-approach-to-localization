@@ -1,5 +1,7 @@
 This folder contains all the hardware specifications, design files for building this project.
 
+![img_20181223_180048](https://user-images.githubusercontent.com/24889667/51115195-88d89100-182d-11e9-9f90-b0df4bda27b1.jpg)
+
 ![img_20190114_182337](https://user-images.githubusercontent.com/24889667/51115209-968e1680-182d-11e9-9db0-57a545443a52.jpg)
 
 ![img_20190114_182359](https://user-images.githubusercontent.com/24889667/51115219-9e4dbb00-182d-11e9-87ff-75a1ebedd0a0.jpg)
