@@ -9,11 +9,17 @@ The car will not operate without a GCS. This is for safety purposes and not for 
 
 do not clone it yet! its a work in progress. Its an improved version of the self driving car. It runs on the stm32 bluepill (STM32F103C8T6) BUT it is not yet even in it's testing phase. I am still working on it.
 
+## Photos of this project : 
+![img_20181223_232752](https://user-images.githubusercontent.com/24889667/51115201-90983580-182d-11e9-9a05-9175e0551990.jpg)
+
+![img_20190114_182337](https://user-images.githubusercontent.com/24889667/51115209-968e1680-182d-11e9-9db0-57a545443a52.jpg)
+
+
 ## Building the project : 
 
 (will update this as I build this project)
 
-For the hardware specifications and 3d print files as well as 2 d drawings, go into the "hardware folder"
+For the hardware specifications and 3d print files as well as 2 d drawings, go into the "hardware folder". 
 
 For the back end libraries, go into the "libraries folder".(surprise surprise).
 
