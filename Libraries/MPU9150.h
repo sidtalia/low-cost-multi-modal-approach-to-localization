@@ -479,8 +479,6 @@ sanity check : marg.failure ? initialize() : do nothing
 #define GYRO_VARIANCE (float)GYRO_SCALING_FACTOR*0.0025 //default.
 #define ACCEL_VARIANCE (float)0.1 //0.1m/s*s error.
 
-#define G_SQUARED (float)96.2361 
-
 #define TEMP_COMP -0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
                         //this is valid only for 1000dps gyro scaling and is applied directly to temp readings (no scaling etc req.)
 //aaah. so much cleaner.
@@ -517,7 +515,7 @@ class MPU9150 {
         void getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT); //get the offsets from inside.
 
         void readAll(bool mag_Read_Karu_Kya); //read all sensors and remove noise from readings
-        float tilt_Compensate(float roll,float pitch); //get the tilt compensated magnetometer heading, returns a number between 0/360.
+        float tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, float sinRoll); //get the tilt compensated magnetometer heading, returns a number between 0/360.
         void compute_All(); //computes the state of the marg during runtime.
         void Setup(); //initialize the state of the marg.
         float temp_Compensation(int16_t temp);
@@ -538,12 +536,16 @@ class MPU9150 {
         uint8_t buffer[14]; //communication buffer
         float A[3],G[3],M[3],T; // noise and offset removed acceleration,gyration, magnetometer and temp
         int16_t a[3],g[3],m[3],t; //acceleration,gyration, magnetometer readings and temperature : RAW
-        float gyro_Bias;
+        float gyro_Bias[3];
         float lastG[3];//for filtering purposes.
         float xA[3][2],yA[3][2];//for accel low pass filter
-        float filter_accel(int i,float input);
+        float CAC[2];
+        float LPF(int i,float input);
         float filter_gyro(float mean, float x); //notch filter
         long stamp; //time stamp
+        float Sanity_Check(float limit, float input);
 };
+
+// void MARG_FUSE(MPU9150 marg[2]);//most likely only 2 margs
 
 #endif /* _MPU9150_H_ */
