@@ -64,7 +64,7 @@ float depress(float a,float k)               //used to depress accelgyro values
 
 float my_asin(float a)
 {
-  return a*(1+(0.5*a*a)); //35us
+  return a*(1+(0.54*a*a*a*a)); //55us still thrice as fast.
 }
 
 float my_cos(float a)
@@ -98,6 +98,8 @@ float my_sin(float a)
   return my_cos(a-1.57); //I are smart.
 }//57us
 
+
+
 //float my_tan(float x)
 //{
 //  float x2,ans; 
@@ -126,9 +128,14 @@ float my_sin(float a)
 //  return ans;
 //} //88us 
 
-
 float spike(float mean, float x)
 {
   float i = mod(mean - x);
-  return 0.05/(1+i);
+  return 0.2/(1+i);
+}
+
+float exp_spike(float mean, float x)
+{
+  float i = mod(mean - x);
+  return 0.2/(1 + 10*i);
 }
