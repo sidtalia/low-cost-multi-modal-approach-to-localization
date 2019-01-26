@@ -4,6 +4,8 @@
 #define dt (float)0.0025
 #define dt_micros 2500
 
+#define ride_height (float)0.062 //6.2cms height of the sensor.
+
 #define MODE_STOP 0x00
 #define MODE_STANDBY 0X01
 #define MODE_MANUAL 0x02
@@ -31,6 +33,7 @@
 #define MODE_ID 0x0007
 #define CLEAR_ID 0x0008
 #define MARK_ID 0x0009
+#define CALIB_ID 0x000A
 
 #define GYRO_CAL 0x10
 #define ACCEL_CAL 0x20
