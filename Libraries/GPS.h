@@ -245,6 +245,7 @@ public:
 		{	
 			localizer();
 			delay(5);
+			Serial.println("stuck?");
 		}
 		if(Hdop > 100)
 		{
