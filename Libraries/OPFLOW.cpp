@@ -13,7 +13,7 @@ OPFLOW::OPFLOW()
 	CALIBERATION = DEFAULT_CALIB;
 }
 
-void OPFLOW::caliberation(float height,float angle)//distance measured by a rangefinder, angle made by the object with the vertical
+void OPFLOW::caliberation(float height, float angle)//distance measured by a rangefinder, angle made by the object with the vertical
 {
   float true_height = height/cos(angle*0.001745); //from degree to radians. when looking at a far away point, moving at the same speed, it appears that the point
   //is moving slower than it should
@@ -35,16 +35,17 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     Y = float(dy)*CALIBERATION;
     SQ = surfaceQuality;
 
-    if(SQ>40)
+    if(SQ>60)
     {
-      P_Error = CALIBERATION/SQ;//the smallest distance it can measure divided by surface Quality.
+      P_Error = CALIBERATION*(256/SQ);//the smallest distance it can measure divided by surface Quality.
                                         //more surface quality = more reliable least count.
       V_Error = P_Error*Frequency; //least count/smallest time division
     }
     else
     {
-      P_Error = 1000; //some very large value that the optical flow sensor would never actually have.
-      V_Error = 1000;//ridiculous values to represent that optical flow is unreliable
+      P_Error = 1e2*(256/SQ); //some very large value that the optical flow sensor would never actually have.
+      V_Error = P_Error*Frequency;//ridiculous values to represent that optical flow is unreliable
+      X=Y=0;
     }
   } 
 	else if(motion & 0x10)  //buffer overflow
