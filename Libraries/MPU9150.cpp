@@ -35,9 +35,10 @@ THE SOFTWARE.
 */
 
 #include "MPU9150.h"
+#include "SIDMATH.h" //the library is needed for certain functions
 
-#define ACCEL_FILTER_GAIN (float)1/3.414213562
-#define C1 (float)0.4142135624
+#define LPF_GAIN (float)1/2 //gains 100Hz LPF
+#define C1 (float)0.0
 
 //filter stuff
 
@@ -55,6 +56,7 @@ MPU9150::MPU9150() {
     for(int i =0;i<3;i++)
     {
       lastG[i] = 0;
+      gyro_Bias[i] = 0;
       for(int j=0;j<2;j++)
       {
         xA[i][j] = yA[i][j] = 0; //initializing things from 0
@@ -362,19 +364,19 @@ void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t 
   return;
 }
 
-void MPU9150::readAll(bool mag_Read_Karu_Kya)
+void MPU9150::readAll(bool mag_Read)
 {
   readIMU();
   for(int i=0;i<3;i++)
   {
     A[i] = float(a[i] - offsetA[i])*ACCEL_SCALING_FACTOR;
-    A[i] = filter_accel(i,A[i]);
+    // A[i] = LPF(i,A[i]);
 
-    G[i] = float(g[i] - offsetG[i])*GYRO_SCALING_FACTOR - temp_Compensation(t);
+    G[i] = float(g[i] - offsetG[i])*GYRO_SCALING_FACTOR + temp_Compensation(t);
     G[i] = filter_gyro(lastG[i],G[i]);
     lastG[i] = G[i];
   }
-  if(mag_Read_Karu_Kya)
+  if(mag_Read)
   {
     readMag();
     for(int i=0;i<3;i++)
@@ -385,13 +387,9 @@ void MPU9150::readAll(bool mag_Read_Karu_Kya)
   return;
 }
 
-float MPU9150::tilt_Compensate(float roll,float pitch) //function to compensate the magnetometer readings for the pitch and the roll.
+float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, float sinRoll) //function to compensate the magnetometer readings for the pitch and the roll.
 {
   float heading;
-  float cosRoll = my_cos(roll); //putting the cos(roll) etc values into variables as these values are used over and 
-  float sinRoll = my_sin(roll); //over, it would simply be a waste of time to keep on calculating them over and over again 
-  float cosPitch = my_cos(pitch);//hence it is a better idea to just calculate them once and use the stored values.
-  float sinPitch = my_sin(pitch);
   //the following formula is compensates for the pitch and roll of the object when using magnetometer reading. 
   float Xh = -M[0]*cosRoll + M[2]*sinRoll;
   float Yh = M[1]*cosPitch - M[0]*sinRoll*sinPitch + M[2]*cosRoll*sinPitch;
@@ -400,19 +398,24 @@ float MPU9150::tilt_Compensate(float roll,float pitch) //function to compensate 
   Xh = Xh*0.2 + 0.8*magbuf[0]; //smoothing out the X readings
   magbuf[0] = Xh;
 
-  mag_mag = max(mag_mag,mag);
-
   Yh = Yh*0.2 + 0.8*magbuf[1]; //smoothing out the Y readings
   magbuf[1] = Yh;
+  
   heading = RAD2DEG*atan2(Yh,Xh);
 
   del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45 - roll) ) );
 
-  mag_gain = 0.1*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
+  mag_gain = 0.5*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
 
   if(mh > 180 && mh < 360)
   {
     del = 360 - del;
+  }
+
+
+  if(mh < 310 && mh > 50 && mh <130 && mh > 230)
+  {
+    heading = del*(1-mag_gain) + mag_gain*heading;
   }
 
   if(heading<0) //atan2 goes from -pi to pi 
@@ -420,20 +423,20 @@ float MPU9150::tilt_Compensate(float roll,float pitch) //function to compensate 
     return 360 + heading; //2pi - theta
   }
 
-  if(mh < 310 && mh > 50 && mh <130 && mh > 230)
-  {
-    heading = del*(1-mag_gain) + mag_gain*heading;
-  }
-
   return heading;
 }//800us worst case on arduino uno 16mhz 8 bit. 800/13.85 on stm32f103c8t6
 
 void MPU9150::compute_All()
 { 
+  //define all variables
   float d_Yaw_Radians;
   float Anet;
   float trust,trust_1;
-  bool mag_Read_Hua_Kya = false;
+  float innovation[3];
+  float V_est,V_est_Error;
+  bool mag_Read = false;
+  float temp = 0;
+  float cosRoll,_sinRoll,cosPitch,_sinPitch;
 
   testConnection() ? failure = false : failure = true; //checking for sensor failure before reading. this has a 63us penalty :'( 
   
@@ -443,30 +446,28 @@ void MPU9150::compute_All()
     return; //break it off right here. take a break. have a kit kat.
   }
 
-  if(millis() - stamp>10) //more than 10ms have passed since last mag read. maintain 100hz update rate.
+  if(millis() - stamp>10) //more than 10ms have passed since last mag read. maintain 100hz update rate for magnetometer
   {
     stamp = millis();
-    mag_Read_Hua_Kya = true;
+    mag_Read = true;
   }
 
-  readAll(mag_Read_Hua_Kya);//read the mag if the condition is true.
+  readAll(mag_Read);//read the mag if the condition is true.
   //PREDICTION STEP (ROLL AND PITCH FIRST)
-  G[2] -= gyro_Bias;
-  d_Yaw_Radians = G[2]*dt*DEG2RAD; //change in yaw around the car's Z axis (this is not the change in heading)
-  roll  += G[1]*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
-  float cosRoll = my_cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
-  float _sinRoll = -my_sin(roll*DEG2RAD);
+  d_Yaw_Radians = sin(G[2]*dt*DEG2RAD); //change in yaw around the car's Z axis (this is not the change in heading)
+  roll  += (G[1] - gyro_Bias[1])*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
+  cosRoll = cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
+  _sinRoll = -sin(roll*DEG2RAD);
   //chaning the roll doesn't change the heading. Changing the pitch can change the heading.
-  //YES there will be some error in pitch that will cause an error in the roll, but consider this : the maximum error in pitch between 2 cycles 
-  //is ~2.5 degrees (1000 dps, 400Hz update rate). if the car is pitching at 1000dps, and say it's pitch is already at 50 degrees, then an error of 
-  //2.5 degrees makes little difference. Also, I highly doubt the car would actually be functioning at such ridiculous rotation rates (1000dps around each axis)
-  pitch += dt*(G[0]*cosRoll + G[2]*_sinRoll) + roll*d_Yaw_Radians  ; //compensates for the effect of yaw and roll on pitch
-  float cosPitch = my_cos(pitch*DEG2RAD);
-  float _sinPitch = -my_sin(pitch*DEG2RAD);
+  //YES there will be some error in pitch that will cause an error in the roll, that is exactly why I have a low pass filter applied to both pitch and roll for values between 2 and 5 degrees
+  pitch += dt*(G[0]*cosRoll - G[2]*_sinRoll - gyro_Bias[0]) + roll*d_Yaw_Radians; //compensates for the effect of yaw and roll on pitch
+  cosPitch = cos(pitch*DEG2RAD);
+  _sinPitch = -sin(pitch*DEG2RAD);
 
   //if the car is going around a banked turn, then the change in heading is not the same as yawRate*dt. P.S: cos is an even function.
-  mh += dt*(G[2]*cosRoll +G[0]*_sinRoll); //compensates for pitch and roll of gyro(roll pitch compensation to the yaw).  
-
+  temp = (G[2]*cosRoll +G[0]*_sinRoll - gyro_Bias[2]); //compensates for pitch and roll of gyro(roll pitch compensation to the yaw).
+  mh += dt*temp;  
+  temp = LPF(2,temp); //low pass filter on rate of rotation in horizontal plane. this is used for correcting magnetometer's laggy measurements.
   //INCREMENT ERROR
   pitch_Error += GYRO_VARIANCE; //increment the errors each cycle
   roll_Error += GYRO_VARIANCE;
@@ -474,19 +475,38 @@ void MPU9150::compute_All()
 
   //CORRECTION STEP AND REDUCING THE ERROR AFTER CORRECTION IN ROLL AND PITCH
   Anet = (A[0]*A[0] + A[1]*A[1] + A[2]*A[2]); //square of net acceleration.
-  trust = spike(G_SQUARED,Anet);// spiky boi filter. basically the farther away the acceleration is from g, the lesser the trust.
-  trust_1 = 1-trust;
+  trust = exp_spike(G_SQUARED,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
+  trust_1 = 1-trust;//the lesser the trust in accelerometer measurements (kind of like scaling up/down the R matrix)
   
-  if( mod(A[1])<9 ) 
+  if( fabs(A[1])<GRAVITY ) //sanity check on accelerations so that we don't get Naans
   {
-    pitch = trust_1*pitch + trust*57.3*my_asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
+    innovation[0] = pitch; //dummy;
+    pitch = trust_1*pitch + trust*RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
     pitch_Error *= trust_1; //reduce the error everytime you make a correction
+    innovation[0] -= pitch; //actual innovation
+    gyro_Bias[0] += trust*innovation[0]*dt; //get bias
   }
-  if( mod(A[0])<9 )
+  if( fabs(A[0])<GRAVITY )
   {
-    roll  = trust_1*roll  - trust*57.3*my_asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
+    innovation[1] = roll;
+    roll  = trust_1*roll  - trust*RAD2DEG*asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
     roll_Error *= trust_1;
+    innovation[1] -= roll;
+    gyro_Bias[1] += trust*innovation[1]*dt;
   }
+  yawRate = G[2] - gyro_Bias[2]; // yaw_Rate.
+
+  //conditional low pass filtering. 
+  if(fabs(roll)>1&&fabs(roll)<4)
+  {
+    roll = LPF(0,roll);
+  }
+  if(fabs(pitch)>1&&fabs(pitch)<4)
+  {
+    pitch = LPF(1,pitch); //applying a 100 Hz LPF to these signals. 
+  }
+  Sanity_Check(90,roll); //sanity checks yo.
+  Sanity_Check(90,pitch);
 
   if(mh >= 360.0) // the mh must be within [0.0,360.0]
   {
@@ -496,26 +516,42 @@ void MPU9150::compute_All()
   {
     mh += 360.0;
   }
-  yawRate = G[2]; // yaw_Rate sent out.
   // CORRECTION OF HEADING AND REDUCING ERROR AFTER CORRECTION.
-  if( mag_Read_Hua_Kya )//check if mag has been read or not.
+  if( mag_Read )//check if mag has been read or not.
   { 
-    if(mh>20.0&&mh<340.0&&yawRate<100) //range of angles where the magnetometer is reliable against the external interference from the motor.
-    {//also, if the car is rotating really quickly, the time difference between when i ping the mag and when i get the results is significant, so
-      //the mag is only reliable when i m rotating slowly.
-      float mag_head = tilt_Compensate(roll*DEG2RAD, pitch*DEG2RAD);
-      float innovation = mh;
-      mh = (1-mag_gain)*mh + mag_gain*mag_head; //TODO: make this dynamic depending on how much interference there is.
-      innovation -= mh; //actual innovation
-      mh_Error *= (1-mag_gain); //reduce the error.
-      gyro_Bias += mag_gain*innovation;
-    }//200us 
+    float mag_head = tilt_Compensate(cosPitch,cosRoll,-_sinPitch,-_sinRoll);
+    if(fabs(mag_head - mh)>180) // this happens when the heading is in the range of 5-0-355 degrees
+    {
+      mh = 360-mh;// doing this because mag is the measured value. can't change that you know.
+    }
+    innovation[2] = mh;//dummy
+    mag_gain /= max(fabs(yawRate),1);
+    mh = (1-mag_gain)*mh + mag_gain*(mag_head + temp*0.01);
+    innovation[2] -= mh; //actual innovation
+    mh_Error *= (1-mag_gain); //reduce the error.
+    gyro_Bias[2] += mag_gain*innovation[2]*dt;
   }
 
-  Ha = A[1]*cosPitch - bias; //this bias is taken from outside (sensor fusion with other sensors to correct velocity estimates) 
-  La = A[0]; //lateral acceleration. I m too lazy to make A[0] public so I transfer the value of A[0] to a public variable. 
-  V += Ha*dt;
-  V_Error += dt*(ACCEL_VARIANCE*cosPitch + Ha*_sinPitch*pitch_Error );
+  //Estimating speed.
+  Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// - world frame 
+  La = A[0] - GRAVITY*_sinRoll; //lateral acceleration. I m too lazy to make A[0] public so I transfer the value of A[0] to a public variable. 
+  if(fabs(yawRate)>10) //estimating speed using (V^2/R) / (V/R) = A/yaw_rate
+  {
+    V_est = -A[0]/(DEG2RAD*yawRate);
+    V_est_Error = (ACCEL_VARIANCE + GYRO_VARIANCE)*10;
+    V += Ha*dt;
+    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);
+    float gain = V_est_Error/(V_est_Error + V_Error);
+    V = gain*V + (1-gain)*V_est;
+    V_Error *= (1-gain);
+  }
+  else
+  {
+    V += Ha*dt;
+    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);
+  }
+  //paranoid check for crazy values of velocity
+  Sanity_Check(50,V);
 
   return;
 }//570us worst case. 
@@ -527,7 +563,7 @@ void MPU9150::Setup()//initialize the state of the marg.
   readAll(1);
   pitch = RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
   roll  = -RAD2DEG*asin(A[0]*G_INVERSE);   
-  mh = tilt_Compensate(roll*DEG2RAD,pitch*DEG2RAD); //find initial heading. Roll, pitch have to be in radians
+  mh = tilt_Compensate(cos(pitch*DEG2RAD),cos(roll*DEG2RAD),sin(pitch*DEG2RAD),sin(roll*DEG2RAD)); //find initial heading. Roll, pitch have to be in radians
   yawRate = G[2]; //initial YawRate of the car.
   stamp = millis(); //get first time stamp.
   return;
@@ -540,10 +576,10 @@ float MPU9150::filter_gyro(float mean, float x)
   return mean + i;
 }
 
-float MPU9150::filter_accel(int i,float x)
+float MPU9150::LPF(int i,float x)
 {
   xA[i][0] = xA[i][1]; 
-  xA[i][1] = x*ACCEL_FILTER_GAIN;
+  xA[i][1] = x*LPF_GAIN;
   yA[i][0] = yA[i][1]; 
   yA[i][1] =   (xA[i][0] + xA[i][1]) + ( C1* yA[i][0]);
   return yA[i][1];
@@ -552,6 +588,19 @@ float MPU9150::filter_accel(int i,float x)
 float MPU9150::temp_Compensation(int16_t temp)
 {
   return GYRO_SCALING_FACTOR*TEMP_COMP*(temp - offsetT);
+}
+
+float MPU9150::Sanity_Check(float limit, float input)
+{
+ if(input>limit)
+ {
+  input = limit;
+ }
+ if(input< -limit)
+ {
+  input = -limit;
+ }
+ return input;
 }
 
 
@@ -598,4 +647,4 @@ float MPU9150::temp_Compensation(int16_t temp)
 //   }
 // }
 //TODO : an NED acceleration and velocity thingy for drone.
-//TODO : velocity estimator for car using gyro and accelero
+//TODO : velocity estimator for car.
