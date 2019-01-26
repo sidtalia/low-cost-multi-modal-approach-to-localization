@@ -8,6 +8,9 @@
 #define RAD2DEG (float)57.2958
 #define DEG2METER (double)111392.84
 #define METER2DEG (double)1/DEG2METER
+#define GRAVITY (float)9.3
+#define G_INVERSE (float)1/GRAVITY
+#define G_SQUARED (float)GRAVITY*GRAVITY
 
 float anglecalcy(float x1,float x2,float y1,float y2);  
 
@@ -28,5 +31,7 @@ float my_cos(float a);
 float my_sin(float a);
 
 float spike(float mean, float x);
+
+float exp_spike(float mean, float x);
 
 #endif 
