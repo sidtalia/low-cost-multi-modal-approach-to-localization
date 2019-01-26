@@ -31,6 +31,14 @@
 			//I will make it a little more generic so that ya'll can just put in your servo specs
 			// (slightly inaccurate open + closed) loop control > mathematical model of the system. Why? because life is full of uncertainties.
 
+#define CRITICAL_YAW 180 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
+#define VARIABLE_GAIN (float)1/CRITICAL_YAW
+
+float yaw_correction(float input)
+{
+	return STEERING_CLOSED_GAIN*(1+VARIABLE_GAIN*fabs(input))*input;
+}
+
 class controller
 {
 	long stamp;
@@ -109,7 +117,7 @@ class controller
 			else
 				throttle = inputs[2] + backoff;
 
-			steer = inputs[0] + STEERING_CLOSED_GAIN*yaw_Compensation;
+			steer = inputs[0] + yaw_correction(yaw_Compensation) ;
 			
 			set_Outputs_Raw(throttle,steer); //defined in INOUT
 
@@ -139,7 +147,19 @@ class controller
 		else if(MODE == MODE_STOP)
 		{
 			V_target = 0;
+			if(V<0.5)
+			{
+				set_Outputs_Raw(THROTTLENULL,int(inputs[0]));
+				return; //gtfo;
+			}
 		}
+
+		else if(MODE == MODE_STANDBY)
+		{
+			set_Outputs_Raw(THROTTLENULL,int(inputs[0])); //pass through but only for steering
+			return ; //GTFO 
+		}
+
 		V_error = V_target - V; //speed setpoint - current speed
 		if(V_error>=0)//Required velocity is greater than the current velocity
 		{
@@ -180,7 +200,7 @@ class controller
 			throttle = limiter(THROTTLENULL + BRAKE_GAIN*deceleration + backoff);
 		}
 
-		steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + STEERING_CLOSED_GAIN*yaw_Compensation); //open loop + closed loop control 
+		steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
 
 		set_Outputs_Raw(throttle,steer); //defined in INOUT
 
@@ -188,5 +208,4 @@ class controller
 
 	}//140us
 };
-
 #endif
