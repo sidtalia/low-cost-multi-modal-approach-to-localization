@@ -11,10 +11,13 @@ class GCS
 {
 public:
 	int16_t msg_len;
-	long transmit_stamp, received_stamp;
+	uint8_t mode;
+	long transmit_stamp, received_stamp,failsafe_stamp;
+	bool failsafe = false;
 	GCS()
 	{
-		received_stamp = transmit_stamp = millis();
+		received_stamp = transmit_stamp = failsafe_stamp = millis();
+		mode = 0x01;
 	}
 	
 	void write_To_Port(int32_t a,int bytes)
@@ -120,28 +123,36 @@ public:
 			write_To_Port(DONE,2);
 		else
 			write_To_Port(ERROR_CODE,2);
+		
 		write_To_Port(0x01,2); //mode
 	}//2 bytes
 
 	// void send_heartbeat(); 
-	void Send_State(byte mode,double lon, double lat, float vel, float heading, float pitch, float roll)//position(2), speed(1), heading(1), acceleration(1), Position Error
+	void Send_State(byte mode,double lon, double lat, float vel, float heading, float pitch, float roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop)//position(2), speed(1), heading(1), acceleration(1), Position Error
 	{
 		if(millis() - transmit_stamp > 100)
 		{
 			transmit_stamp = millis();
-			long out[6];
+			long out[13];
 			out[0] = lon*1e7;
 			out[1] = lat*1e7;//hopefully this is correct
-			out[2] = vel*100;
-			out[3] = heading*100;
-			out[4] = pitch*100;
-			out[5] = roll*100;
+			out[2] = vel*1e2;
+			out[3] = heading*1e2;
+			out[4] = pitch*1e2;
+			out[5] = roll*1e2;
+			out[6] = Accel*1e2;
+			out[7] = opError*1e3;
+			out[8] = pError*1e3;
+			out[9] = head_Error*1e3;
+			out[10] = VelError*1e3;
+			out[11] = Time;
+			out[12] = Hdop*1e3;
 
 			write_To_Port(START_SIGN,2);
-			write_To_Port(18,2);
+			write_To_Port(56,2);
 			write_To_Port(STATE_ID,2);
 			write_To_Port(int16_t(mode),2);
-			for(int i=0;i<6;i++)
+			for(int i=0;i<13;i++)
 			{
 				write_To_Port(out[i],4);
 			}
@@ -150,21 +161,34 @@ public:
 
 	uint16_t check()
 	{
-		uint16_t START_ID,len,message_ID,mode;
+		uint16_t START_ID,message_ID;
 
 		if(millis() - received_stamp > 100) //10 Hz 
 		{
 			received_stamp = millis();
 			if(Serial.available())
 			{
+				failsafe_stamp = millis();
 				START_ID = Serial.read()|int16_t(Serial.read()<<8); //start sign
 				if(START_ID == START_SIGN)
 				{
 					msg_len = Serial.read()|int16_t(Serial.read()<<8); //length of packet
 					message_ID = Serial.read()|int16_t(Serial.read()<<8);	
 					mode = Serial.read()|int16_t(Serial.read()<<8); 
+					failsafe = false;
 					return message_ID;
 				}
+				else
+				{
+					while(Serial.available())
+					{
+						Serial.read();
+					}
+				}
+			}
+			if(millis() - failsafe_stamp > 1000)
+			{
+				failsafe = true;
 			}
 		}
 		return 0xFF;//no message
@@ -172,8 +196,6 @@ public:
 
 	uint8_t get_Mode()
 	{
-		uint8_t mode = Serial.read();
-		mode = Serial.read(); //its the last 8 bytes that matter
 		return mode;
 	}
 
