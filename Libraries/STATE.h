@@ -12,7 +12,7 @@ class STATE
 public :
 	double iLat,iLon,lastLat,lastLon, latitude, longitude; 
 	float heading, Velocity, past_Velocity, last_Velocity,past_VelError, Acceleration;
-	float X, last_X, past_X, past_PosError_X, Y, last_Y, past_Y, past_PosError_Y, PosError_X, PosError_Y, VelError;
+	float X, last_X, past_X, past_PosError_X, Y, last_Y, past_Y, past_PosError_Y, PosError_X, PosError_Y, VelError, PosError_tot;
 	float AccBias;
 	bool position_reset;
 	float drift_Angle;
@@ -44,8 +44,8 @@ public :
 	void state_update(double lon, double lat, bool tick,double Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
 						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error)
 	{
-		float cosmh = my_cos(mh*DEG2RAD);
-		float sinmh = my_sin(mh*DEG2RAD);
+		float cosmh = cos(mh*DEG2RAD);
+		float sinmh = sin(mh*DEG2RAD);
 		float Xacc,Yacc,dS,dSError,dTheta;
 		float PosGain_Y, PosGain_X, VelGain;
 		heading = mh;
@@ -136,7 +136,10 @@ public :
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-		AccBias += (Vacc - Velocity)*VelGain*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+		if(OF_P_Error<1) //don't touch this bias if you have an error more than 1 
+		{
+			AccBias += (Vacc - Velocity)*VelGain;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+		}
 		//this is the covariance stuff(using the corrected estimates to correct errors in states other than the one being corrected)
 		//distance moved in last cycle
 		dS = Velocity*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
@@ -236,7 +239,7 @@ public :
 			past_Y = Y;
 			past_Velocity = Velocity;
 		}
-		if(position_reset && Hdop < 1.0 && tick)
+		if(position_reset && Hdop < 5.0 && tick)
 		{
 			lastLat = lat;
 			lastLon = lon;
@@ -255,6 +258,7 @@ public :
 		latitude = iLat + double(Y*METER2DEG);
 		longitude = iLon + double(X*METER2DEG);
 
+		PosError_tot = distancecalcy(0,PosError_Y,0,PosError_Y,0);
 		drift_Angle = (OF_V_X/Velocity); //uncomment when you have a quick atan function
 		return ;
 		//----------LOCALIZATION ENDS-------------------------------------
