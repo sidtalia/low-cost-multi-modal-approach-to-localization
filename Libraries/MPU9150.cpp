@@ -53,7 +53,7 @@ MPU9150::MPU9150() {
     mh_Error = 0;
     pitch_Error = 0;
     roll_Error = 0;
-    for(int i =0;i<3;i++)
+    for(int i =0;i<4;i++)
     {
       lastG[i] = 0;
       gyro_Bias[i] = 0;
@@ -405,19 +405,19 @@ float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, flo
 
   del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45 - roll) ) );
 
-  mag_gain = 0.5*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
+  mag_gain = 0.01*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
 
-  if(mh > 180 && mh < 360)
-  {
-    del = 360 - del;
-  }
+  // if(mh > 180 && mh < 360)
+  // {
+  //   del = 360 - del;
+  // }
 
 
-  if(mh < 310 && mh > 50 && mh <130 && mh > 230)
-  {
-    heading = del*(1-mag_gain) + mag_gain*heading;
-  }
-
+  // if(mh < 310 && mh > 50 && mh <130 && mh > 230)
+  // {
+  //   heading = del*(1-mag_gain) + mag_gain*heading;
+  // }
+  heading += DECLINATION;
   if(heading<0) //atan2 goes from -pi to pi 
   {
     return 360 + heading; //2pi - theta
@@ -433,10 +433,11 @@ void MPU9150::compute_All()
   float Anet;
   float trust,trust_1;
   float innovation[3];
-  float V_est,V_est_Error;
+  float V_mes;
   bool mag_Read = false;
   float temp = 0;
   float cosRoll,_sinRoll,cosPitch,_sinPitch;
+  float gain;
 
   testConnection() ? failure = false : failure = true; //checking for sensor failure before reading. this has a 63us penalty :'( 
   
@@ -446,7 +447,7 @@ void MPU9150::compute_All()
     return; //break it off right here. take a break. have a kit kat.
   }
 
-  if(millis() - stamp>10) //more than 10ms have passed since last mag read. maintain 100hz update rate for magnetometer
+  if(millis() - stamp>MAG_UPDATE_TIME_MS) //more than 10ms have passed since last mag read. maintain 100hz update rate for magnetometer
   {
     stamp = millis();
     mag_Read = true;
@@ -460,7 +461,7 @@ void MPU9150::compute_All()
   _sinRoll = -sin(roll*DEG2RAD);
   //chaning the roll doesn't change the heading. Changing the pitch can change the heading.
   //YES there will be some error in pitch that will cause an error in the roll, that is exactly why I have a low pass filter applied to both pitch and roll for values between 2 and 5 degrees
-  pitch += dt*(G[0]*cosRoll - G[2]*_sinRoll - gyro_Bias[0]) + roll*d_Yaw_Radians; //compensates for the effect of yaw and roll on pitch
+  pitch += dt*(G[0]*cosRoll - G[2]*_sinRoll - gyro_Bias[0]);// + roll*d_Yaw_Radians; //compensates for the effect of yaw and roll on pitch
   cosPitch = cos(pitch*DEG2RAD);
   _sinPitch = -sin(pitch*DEG2RAD);
 
@@ -475,10 +476,10 @@ void MPU9150::compute_All()
 
   //CORRECTION STEP AND REDUCING THE ERROR AFTER CORRECTION IN ROLL AND PITCH
   Anet = (A[0]*A[0] + A[1]*A[1] + A[2]*A[2]); //square of net acceleration.
-  trust = exp_spike(G_SQUARED,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
+  trust = exp_spike(0,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
   trust_1 = 1-trust;//the lesser the trust in accelerometer measurements (kind of like scaling up/down the R matrix)
   
-  if( fabs(A[1])<GRAVITY ) //sanity check on accelerations so that we don't get Naans
+  if( fabs(A[1])<GRAVITY-1 ) //sanity check on accelerations so that we don't get Naans
   {
     innovation[0] = pitch; //dummy;
     pitch = trust_1*pitch + trust*RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
@@ -486,7 +487,7 @@ void MPU9150::compute_All()
     innovation[0] -= pitch; //actual innovation
     gyro_Bias[0] += trust*innovation[0]*dt; //get bias
   }
-  if( fabs(A[0])<GRAVITY )
+  if( fabs(A[0])<GRAVITY-1 )
   {
     innovation[1] = roll;
     roll  = trust_1*roll  - trust*RAD2DEG*asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
@@ -496,16 +497,16 @@ void MPU9150::compute_All()
   }
   yawRate = G[2] - gyro_Bias[2]; // yaw_Rate.
 
-  //conditional low pass filtering. 
-  if(fabs(roll)>1&&fabs(roll)<4)
-  {
-    roll = LPF(0,roll);
-  }
-  if(fabs(pitch)>1&&fabs(pitch)<4)
-  {
-    pitch = LPF(1,pitch); //applying a 100 Hz LPF to these signals. 
-  }
-  Sanity_Check(90,roll); //sanity checks yo.
+  //conditional low pass filtering between 1 and 4 degrees. 100Hz LPF  
+  // if(fabs(roll)>1&&fabs(roll)<4)
+  // {
+  roll = LPF(0,roll);
+  // }
+  // if(fabs(pitch)>1&&fabs(pitch)<4)
+  // {
+  pitch = LPF(1,pitch); //applying a 100 Hz LPF to these signals. 
+  // }
+  Sanity_Check(90,roll); //sanity checks.
   Sanity_Check(90,pitch);
 
   if(mh >= 360.0) // the mh must be within [0.0,360.0]
@@ -526,35 +527,46 @@ void MPU9150::compute_All()
     }
     innovation[2] = mh;//dummy
     mag_gain /= max(fabs(yawRate),1);
-    mh = (1-mag_gain)*mh + mag_gain*(mag_head + temp*0.01);
+    mh = (1-mag_gain)*mh + mag_gain*(mag_head + MAG_UPDATE_TIME*temp);//temp*0.01 is to compensate for the magnetometer lag.
     innovation[2] -= mh; //actual innovation
     mh_Error *= (1-mag_gain); //reduce the error.
     gyro_Bias[2] += mag_gain*innovation[2]*dt;
   }
-
   //Estimating speed.
-  Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// - world frame 
-  La = A[0] - GRAVITY*_sinRoll; //lateral acceleration. I m too lazy to make A[0] public so I transfer the value of A[0] to a public variable. 
-  if(fabs(yawRate)>10) //estimating speed using (V^2/R) / (V/R) = A/yaw_rate
+  Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// world frame 
+  Sanity_Check(12,Ha);
+  La = A[0] - GRAVITY*_sinRoll; //lateral acceleration in global reference. 
+  if(fabs(yawRate)>10) //this check is to ensure a decent signal to noise ratio.
   {
-    V_est = -A[0]/(DEG2RAD*yawRate);
-    V_est_Error = (ACCEL_VARIANCE + GYRO_VARIANCE)*10;
+    float radius = V/(yawRate*DEG2RAD);//estimating speed using (V^2/R) / (V/R) = A/yaw_rate
+    float theta = atan(DIST_BW_ACCEL_AXLE/radius);
+    Ha -= La*sin(theta); //compensation for not having the accelerometer at the center of the rear axle.
+
+    V_mes = -La/(DEG2RAD*yawRate);
     V += Ha*dt;
-    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);
-    float gain = V_est_Error/(V_est_Error + V_Error);
-    V = gain*V + (1-gain)*V_est;
+    float diff = V;
+    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);//expression for error. God I wish this was fixed too!
+    gain = V_Error/(CIRCULAR_VELOCITY_ERROR + V_Error); //CIRCULAR VELOCITY ERROR is fixed and is defined in the header.
+    V = (1-gain)*V + gain*V_mes;//
     V_Error *= (1-gain);
+    bias += (diff - V)*gain*dt;
   }
-  else
+  else//if the car ain't turnin 
   {
     V += Ha*dt;
     V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);
   }
-  //paranoid check for crazy values of velocity
-  Sanity_Check(50,V);
+  gain = V_Error/(encoder_velocity[1] + V_Error); //encoder_velocity[0] is error, [1] is actual speed
+  V = (1-gain)*V + gain*encoder_velocity[0]; //not reducing error because to be honest there is no error reduction happening here okay folks
 
   return;
 }//570us worst case. 
+
+void MPU9150::get_Rotations(float omega[2])
+{
+  omega[0] = DEG2RAD*G[0];
+  omega[1] = DEG2RAD*G[1]; //pass the rotations in radians.
+}
 
 void MPU9150::Setup()//initialize the state of the marg.
 {
@@ -590,19 +602,12 @@ float MPU9150::temp_Compensation(int16_t temp)
   return GYRO_SCALING_FACTOR*TEMP_COMP*(temp - offsetT);
 }
 
-float MPU9150::Sanity_Check(float limit, float input)
+void MPU9150::Velcity_Update(float &velocity)
 {
- if(input>limit)
- {
-  input = limit;
- }
- if(input< -limit)
- {
-  input = -limit;
- }
- return input;
+  V = LPF(3,velocity);
+  Sanity_Check(50,V);
+  velocity = V; 
 }
-
 
 // void MARG_FUSE(MPU9150 marg[2])
 // {
@@ -633,7 +638,7 @@ float MPU9150::Sanity_Check(float limit, float input)
 //     marg[1].roll_Error = marg[0].roll_Error;
 
 //     marg[1].pitch = marg[0].pitch;
-//     marg[1].pitch_Error = marg[0].pitch_Error;
+//     marg[1].pitch_Error = marg[0].pitch_(1-Erro)r;
 
 //     marg[1].mh = marg[0].mh;
 //     marg[1].mh_Error = marg[0].mh_Error;
