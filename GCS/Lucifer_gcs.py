@@ -119,15 +119,15 @@ def readSerial():
 				
 				if(num_bytes>8 and saved == False):
 					#car is sending new offsets
-					print("this one")
-					offsets = message[4:14]
+					print("new offsets received")
+					offsets = message[4:]
 					print(offsets)
 					np.save(file_name,offsets)
 					saved = True
 
 				else:
-					print('blank')
-					offsets = message[4:14]
+					print('car is sending offsets for no real reason other than to show off.')
+					offsets = message[4:]
 					print(offsets)
 
 			if ID == WP_ID:
@@ -364,7 +364,3 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
-
-
-
-
