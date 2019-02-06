@@ -516,8 +516,8 @@ class MPU9150 {
         void mag_caliberation();//for mag caliberation. point the nose of the car north, then rotate it around the lateral axis, point the
                                 //nose East and rotate the car around the longitudenal axis
 
-        void setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT); //set the offsets from outside.
-        void getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT); //get the offsets from inside.
+        void setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT,int16_t gain[3]); //set the offsets from outside.
+        void getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT,int16_t gain[3]); //get the offsets from inside.
 
         void readAll(bool mag_Read_Karu_Kya); //read all sensors and remove noise from readings
         float tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, float sinRoll); //get the tilt compensated magnetometer heading, returns a number between 0/360.
@@ -534,6 +534,7 @@ class MPU9150 {
         float Ha,V,bias,La;
         float V_Error;
         int16_t offsetA[3],offsetG[3],offsetM[3],offsetT;//offsets need to be saved you know.
+        int16_t axis_gain[3];
         uint8_t error_code;
         bool failure;
         float mag_mag;
