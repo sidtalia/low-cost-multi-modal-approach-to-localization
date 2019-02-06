@@ -30,7 +30,7 @@ public:
 	  }
 	}
 
-	bool Get_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t &T)
+	bool Get_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t &T,int16_t gain[3])
 	{
 		uint8_t i;
 		int16_t START_ID, message_ID, len,mode;
@@ -56,6 +56,7 @@ public:
 						A[i] = Serial.read()|int16_t(Serial.read()<<8);
 						G[i] = Serial.read()|int16_t(Serial.read()<<8);
 						M[i] = Serial.read()|int16_t(Serial.read()<<8);
+						gain[i] = Serial.read()|int16_t(Serial.read()<<8);
 					}
 					T = Serial.read()|int16_t(Serial.read()<<8);
 					return 1;
@@ -73,7 +74,7 @@ public:
 		return 0;
 	} //
 
-	void Send_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t T)
+	void Send_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t T,int16_t gain[3])
 	{
 		uint8_t i;
 		write_To_Port(START_SIGN,2);
@@ -85,6 +86,7 @@ public:
 			write_To_Port(A[i],2);
 			write_To_Port(G[i],2);
 			write_To_Port(M[i],2);
+			write_To_Port(gain[i],2);
 		}
 		write_To_Port(T,2);
 	}//42 bytes sent
