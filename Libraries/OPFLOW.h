@@ -27,7 +27,7 @@
 #define RESET_PIN PB0
 #define SS_PIN PA4
 
-#define DEFAULT_CALIB (float)0.00043
+#define DEFAULT_CALIB (float)ride_height/128.0f
 #define DEFAULT_DT dt
 #define DEFAULT_FREQ 1/dt
 /*
@@ -40,6 +40,8 @@ usage :
 	obj.updateOpticalFlow(data);//get that data baby
 */
 
+#define LPF_GAIN_OPFLOW (float)1/13.70620474
+#define C1_OPFLOW (float)0.8540806855
 
 class OPFLOW
 {
@@ -53,8 +55,11 @@ public:
 	void spiWrite(uint8_t reg, uint8_t *data, uint8_t len);
 	uint8_t spiRead(uint8_t reg);
 	void spiRead(uint8_t reg, uint8_t *data, uint8_t len); 
-	float CALIBERATION,Frequency;
+	float LPF(int i,float x);
+	float CALIBERATION;
 	float X, Y, V_x, V_y, SQ, P_Error, V_Error;
+	float omega[2];
+	float xA[4][2],yA[4][2];//for low pass filter
 };
 
 #endif
