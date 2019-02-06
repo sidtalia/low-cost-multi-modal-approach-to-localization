@@ -128,7 +128,7 @@ public:
 	}//2 bytes
 
 	// void send_heartbeat(); 
-	void Send_State(byte mode,double lon, double lat, float vel, float heading, float pitch, float roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop)//position(2), speed(1), heading(1), acceleration(1), Position Error
+	void Send_State(byte mode,double lon, double lat, float vel, float heading, double pitch, double roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop)//position(2), speed(1), heading(1), acceleration(1), Position Error
 	{
 		if(millis() - transmit_stamp > 100)
 		{
@@ -138,8 +138,8 @@ public:
 			out[1] = lat*1e7;//hopefully this is correct
 			out[2] = vel*1e2;
 			out[3] = heading*1e2;
-			out[4] = pitch*1e2;
-			out[5] = roll*1e2;
+			out[4] = pitch*1e7;
+			out[5] = roll*1e7;
 			out[6] = Accel*1e2;
 			out[7] = opError*1e3;
 			out[8] = pError*1e3;
