@@ -3,7 +3,7 @@
 #include"SIDMATH.h"
 
 
-float anglecalcy(float x1,float x2,float y1,float y2) 
+float anglecalcy(float x1,float x2,float y1,float y2)  //everything is inline because fuck you thats why
 {
   float angle = RAD2DEG*atan2((y2-y1),(x2-x1));
   if(angle<0)
@@ -128,14 +128,27 @@ float my_sin(float a)
 //  return ans;
 //} //88us 
 
-float spike(float mean, float x)
+float spike(float center, float x)
 {
-  float i = mod(mean - x);
+  float i = mod(center - x);
   return 0.2/(1+i);
 }
 
-float exp_spike(float mean, float x)
+float exp_spike(float center, float x)
 {
-  float i = mod(mean - x);
-  return 0.2/(1 + 10*i);
+  float i = mod(center - x);
+  return 0.2/(1+400*i);
+}
+
+void Sanity_Check(float limit, float &input)
+{
+ if(input>limit)
+ {
+  input = limit;
+ }
+ if(input< -limit)
+ {
+  input = -limit;
+ }
+ return;
 }
