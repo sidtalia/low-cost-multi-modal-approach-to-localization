@@ -64,6 +64,8 @@ class CAR():
 		self.sensorHealth = None
 		self.lat = []
 		self.lon = []
+		self.gps_lat = []
+		self.gps_lon = []
 		self.MODE = 0
 		self.Calib = False
 
@@ -87,6 +89,7 @@ def readSerial():
 	global Tx_ID
 	global Tx_msg_len
 	global saved
+	time.sleep(0.05)
 	try:
 		num_bytes = com.check_recv()
 		if(num_bytes):
@@ -146,8 +149,10 @@ def readSerial():
 				car.Y =            1e-7*buf[1]
 				car.speed =        1e-2*buf[2]
 				car.heading =      1e-2*buf[3]
-				car.pitch = 	   1e-2*buf[4]
-				car.roll = 		   1e-2*buf[5]
+				# car.pitch = 	   1e-2*buf[4]
+				# car.roll = 		   1e-2*buf[5]
+				dummy_lon = 	   1e-7*buf[4]
+				dummy_lat = 	   1e-7*buf[5]
 				acceleration = 	   1e-2*buf[6]
 				opError = 		   1e-3*buf[7]
 				pError = 		   1e-3*buf[8]
@@ -158,11 +163,11 @@ def readSerial():
 
 				gcs.MODE.configure(text = 'MODE = {}'.format(str(car.MODE) ) )
 				gcs.latitude.configure(text = 'latitude = {} degrees'.format(str(round(car.Y,7) ) ) )
-				gcs.longitude.configure(text = 'latitude = {} degrees'.format(str(round(car.X,7) ) ) )
+				gcs.longitude.configure(text = 'longitude = {} degrees'.format(str(round(car.X,7) ) ) )
 				gcs.speed.configure(text = 'speed = {} m/s'.format(str(round(car.speed,2) ) ) )
 				gcs.heading.configure(text = 'heading = {} degrees from east'.format(str(round(car.heading,2) ) ) )
-				gcs.pitch.configure(text = 'pitch = {} degrees'.format(str(round(car.pitch,2) ) ) )
-				gcs.roll.configure(text = 'roll = {} degrees'.format(str( round(car.roll,2) ) ) )
+				gcs.pitch.configure(text = 'pitch = {} degrees'.format(str(round(dummy_lat,7) ) ) )
+				gcs.roll.configure(text = 'roll = {} degrees'.format(str( round(dummy_lon,7) ) ) )
 				gcs.acceleration.configure(text = 'acceleration = {} m/s^2'.format(str( round(acceleration,2) ) ) )
 				gcs.opError.configure(text = 'op_Error = {} m'.format(str( round(opError,5) ) ) )
 				gcs.pError.configure(text = 'positionError = {} m'.format(str( round(pError,2) ) ) )
@@ -173,20 +178,33 @@ def readSerial():
 
 				lat = np.array(car.lat)
 				lon = np.array(car.lon)
+				dum_lat = np.array(car.gps_lat)
+				dum_lon = np.array(car.gps_lon)
 
 				if(rec):
 					car.lon.append(car.X)
 					car.lat.append(car.Y)
+					car.gps_lon.append(dummy_lon)
+					car.gps_lat.append(dummy_lat)
+					# data = np.array([car.X,car.Y,car.speed,car.heading,dummy_lon,dummy_lat,acceleration,opError,pError,heading_Error,Vel_Error,Exec_time,Hdop])
+					# car.lon.append(data)
 					plt.scatter(car.X,car.Y)
 					plt.show()
 				else:
 					if(len(car.lon)):
 						a = time.localtime(time.time())
-						log_file = 'LUCIFER_log_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
+						log_file = 'LUCIFER_log_filt_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
 						points =  np.concatenate((lat,lon),axis=0)
+						np.save( log_file, points)
+						log_file = 'LUCIFER_log_gps_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
+						points =  np.concatenate((dum_lat,dum_lon),axis=0)
 						np.save( log_file, points)
 						car.lon = []#reset
 						car.lat = []
+						car.gps_lat = []
+						car.gps_lon = []
+						# log_file = 'LUCIFER_log_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
+						# np.save( log_file, car.lon)
 						plt.clf() # clear the points
 
 				send_heartbeat(car)
@@ -266,6 +284,9 @@ def stop_recording():
 	global rec
 	rec = False
 
+def mark():
+	return
+
 class GCS():
 
     def __init__(self):
@@ -323,6 +344,8 @@ class GCS():
         self.cruise_button.pack()
         self.ludicrous_button = tk.Button(self.frame, text = 'LUDICROUS', command = set_666)
         self.ludicrous_button.pack()
+        self.mark_button = tk.Button(self.frame, text = 'MARK', command = mark)
+        self.mark_button.pack()
         self.stop_button = tk.Button(self.frame, text = 'STOP', command = set_stop)
         self.stop_button.pack()
         self.record_button = tk.Button(self.frame, text = 'RECORD', command = record)
