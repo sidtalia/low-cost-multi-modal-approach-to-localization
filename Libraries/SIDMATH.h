@@ -33,5 +33,6 @@ float my_sin(float a);
 float spike(float mean, float x);
 
 float exp_spike(float mean, float x);
+void Sanity_Check(float limit, float &input);
 
 #endif 
