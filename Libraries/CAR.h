@@ -33,6 +33,9 @@
 
 #define CRITICAL_YAW 180 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
 #define VARIABLE_GAIN (float)1/CRITICAL_YAW
+#define LPF_GAIN_THROTTLE (float)1/64.65674116
+#define C1_THROTTLE (float)0.9690674172
+#define OPEN_GAIN_INVERSE (float)1/OPEN_GAIN
 
 float yaw_correction(float input)
 {
@@ -42,10 +45,22 @@ float yaw_correction(float input)
 class controller
 {
 	long stamp;
+	int throttle,steer;
+	float speed,speed_Error;
+	float xA[2][2],yA[2][2];//for low pass filter
 	public:
 	controller()
 	{
 		stamp = millis(); //get time stamp
+	}
+
+	float LPF(int i,float x)
+	{
+	  xA[i][0] = xA[i][1]; 
+	  xA[i][1] = x*LPF_GAIN_THROTTLE;
+	  yA[i][0] = yA[i][1]; 
+	  yA[i][1] =   (xA[i][0] + xA[i][1]) + ( C1_THROTTLE* yA[i][0]); // first order LPF to predict new speed.
+	  return yA[i][1];
 	}
 
 	float Curvature_To_Angle(float C)
@@ -74,6 +89,26 @@ class controller
 		return int(input);
 	}
 
+	void get_speed(float array[2])
+	{
+		array[0] = speed;
+		array[1] = speed_Error;
+	}
+
+	void calc_speed()
+	{
+		if(throttle<1530)
+		{
+			speed = 0;
+			speed_Error = 1e2;
+		}	
+		else
+		{
+			float dummy = (throttle - THROTTLE_OFFSET)/OPEN_GAIN;
+			speed = LPF(0,dummy);
+			speed_Error = fabs(speed - dummy);//error is proportional to the target - estimated speed by Low pass filter model.
+		}
+	}
 
 	//the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
 	void driver(float C[2], float braking_distance, float V, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
@@ -85,7 +120,8 @@ class controller
 		}
 
 		float deceleration, backoff, resultant, correction, yaw_Compensation, V_target, V_error;
-		int throttle = THROTTLENULL,steer = STEERINGNULL; //default values.
+		throttle = THROTTLENULL;
+		steer = STEERINGNULL; //default values.
 		
 		resultant = sqrt(Ax*Ax + Ay*Ay); //resultant horizontal acceleration
 		correction = Curvature_To_Angle(C[0]); //convert radius of curvature to steering angle. this actually depends on wheelbase.
@@ -119,13 +155,17 @@ class controller
 
 			steer = inputs[0] + yaw_correction(yaw_Compensation) ;
 			
+			calc_speed();
 			set_Outputs_Raw(throttle,steer); //defined in INOUT
 
 			return; //return from here
 		}
 		else if(MODE == MODE_MANUAL)
 		{
-			set_Outputs_Raw(int(inputs[2]),int(inputs[0])); //pass through
+			throttle = inputs[2];
+			steer = inputs[0];
+			calc_speed();
+			set_Outputs_Raw(throttle,steer); //pass through
 			return ; //GTFO 
 		}
 
@@ -149,14 +189,20 @@ class controller
 			V_target = 0;
 			if(V<0.5)
 			{
-				set_Outputs_Raw(THROTTLENULL,int(inputs[0]));
+				throttle = THROTTLENULL;
+				steer = inputs[0];
+				calc_speed();
+				set_Outputs_Raw(throttle,steer);
 				return; //gtfo;
 			}
 		}
 
 		else if(MODE == MODE_STANDBY)
 		{
-			set_Outputs_Raw(THROTTLENULL,int(inputs[0])); //pass through but only for steering
+			throttle = THROTTLENULL;
+			steer = inputs[0];
+			calc_speed();
+			set_Outputs_Raw(throttle,steer); //pass through but only for steering
 			return ; //GTFO 
 		}
 
@@ -202,6 +248,7 @@ class controller
 
 		steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
 
+		calc_speed();
 		set_Outputs_Raw(throttle,steer); //defined in INOUT
 
 		return; //good practice
