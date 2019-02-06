@@ -1,9 +1,6 @@
-
 #include"OPFLOW.h"
 #include"Arduino.h"
 #include<SPI.h>
-
-#define Frequency 1/dt //dt is defined in PARAMS.h
 
 
 SPISettings spiSettings(2e6, MSBFIRST, SPI_MODE3);    // 2 MHz, mode 3
@@ -31,35 +28,66 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 		int8_t dx = buf[1];   //caliberation for conversion to meters.   
 		int8_t dy = buf[2];
 		uint8_t surfaceQuality = buf[3];
-    X = float(dx)*CALIBERATION;
-    Y = float(dy)*CALIBERATION;
+    X = dx;
+    X *= CALIBERATION;
+    Y = dy;
+    Y *= CALIBERATION;
     SQ = surfaceQuality;
+    if(SQ<10)
+    {
+      SQ = 10; //sanity check
+    }
 
-    if(SQ>60)
+    if(SQ>100)
     {
       P_Error = CALIBERATION*(256/SQ);//the smallest distance it can measure divided by surface Quality.
                                         //more surface quality = more reliable least count.
-      V_Error = P_Error*Frequency; //least count/smallest time division
+      V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division
+    }
+
+    if(SQ>80 && SQ<=100)
+    {
+      P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
+                                        //more surface quality = more reliable least count.
+      V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division      
+    }
+
+    if(SQ>60 && SQ<=80)
+    {
+      P_Error = CALIBERATION*(25600/SQ);//the smallest distance it can measure divided by surface Quality.
+                                        //more surface quality = more reliable least count.
+      V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division
+    }
+    else if(SQ<=60 && SQ>10)
+    {
+      P_Error = 1e3*CALIBERATION*(25600/SQ); //some very large value that the optical flow sensor would never actually have.
+      V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
     }
     else
     {
-      P_Error = 1e2*(256/SQ); //some very large value that the optical flow sensor would never actually have.
-      V_Error = P_Error*Frequency;//ridiculous values to represent that optical flow is unreliable
-      X=Y=0;
+      P_Error = 1e5; //some very large value that the optical flow sensor would never actually have.
+      V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
     }
+
+    X -= omega[1]*ride_height*dt;
+    X = LPF(0,X);
+    Y += omega[0]*ride_height*dt; //compensation for rotations ya know.
+    Y = LPF(1,Y);
   } 
 	else if(motion & 0x10)  //buffer overflow
 	{
 		uint8_t surfaceQuality = 1;		
-    X = 0.0;
-    Y = 0.0;
+    X = LPF(0,0);
+    Y = LPF(1,0);
     SQ = float(surfaceQuality);
-	  P_Error = 1000; //some very large value that the optical flow sensor would never actually have.
-    V_Error = 1000;//ridiculous values to represent that optical flow is unreliable.
+	  P_Error = 1e3; //some very large value that the optical flow sensor would never actually have.
+    V_Error = 1e3;//ridiculous values to represent that optical flow is unreliable.
   }
 
-  V_x = X*Frequency;
-  V_y = Y*Frequency;
+  V_x = X*LOOP_FREQUENCY;
+  V_x = LPF(2,V_x);
+  V_y = Y*LOOP_FREQUENCY;
+  V_y = LPF(3,V_y);
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
@@ -68,6 +96,15 @@ void OPFLOW::reset_ADNS(void)              //reset. used almost never after the 
   delayMicroseconds(20);
   digitalWrite(RESET_PIN, LOW); // Set low
   delayMicroseconds(500); // Wait for sensor to get ready
+}
+
+float OPFLOW::LPF(int i,float x)
+{
+  xA[i][0] = xA[i][1]; 
+  xA[i][1] = x*LPF_GAIN_OPFLOW;
+  yA[i][0] = yA[i][1]; 
+  yA[i][1] =   (xA[i][0] + xA[i][1]) + ( C1_OPFLOW* yA[i][0]); // first order LPF to predict new speed.
+  return yA[i][1];
 }
 
 bool OPFLOW::initialize(void)
