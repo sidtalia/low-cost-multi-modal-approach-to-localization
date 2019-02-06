@@ -477,7 +477,12 @@ sanity check : marg.failure ? initialize() : do nothing
 #define GYRO_SCALING_FACTOR  (float)0.030516
 
 #define GYRO_VARIANCE (float)GYRO_SCALING_FACTOR*0.0025 //default.
-#define ACCEL_VARIANCE (float)0.1 //0.1m/s*s error.
+#define ACCEL_VARIANCE (float)0.5 //0.1m/s*s error.
+#define CIRCULAR_VELOCITY_ERROR (ACCEL_VARIANCE + GYRO_VARIANCE)*10
+
+#define MAG_UPDATE_TIME (float)0.01
+#define MAG_UPDATE_TIME_MS 1000*MAG_UPDATE_TIME
+
 
 #define TEMP_COMP -0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
                         //this is valid only for 1000dps gyro scaling and is applied directly to temp readings (no scaling etc req.)
@@ -519,6 +524,8 @@ class MPU9150 {
         void compute_All(); //computes the state of the marg during runtime.
         void Setup(); //initialize the state of the marg.
         float temp_Compensation(int16_t temp);
+        void Velcity_Update(float &velocity);
+        void get_Rotations(float omega[2]);
 
         float roll,pitch,yawRate,mh;
         float roll_Error,pitch_Error,mh_Error;
@@ -530,6 +537,8 @@ class MPU9150 {
         uint8_t error_code;
         bool failure;
         float mag_mag;
+        float encoder_velocity[2];
+
         
     private:
         uint8_t devAddr; //device address
@@ -538,12 +547,11 @@ class MPU9150 {
         int16_t a[3],g[3],m[3],t; //acceleration,gyration, magnetometer readings and temperature : RAW
         float gyro_Bias[3];
         float lastG[3];//for filtering purposes.
-        float xA[3][2],yA[3][2];//for accel low pass filter
+        float xA[4][2],yA[4][2];//for accel low pass filter
         float CAC[2];
         float LPF(int i,float input);
         float filter_gyro(float mean, float x); //notch filter
         long stamp; //time stamp
-        float Sanity_Check(float limit, float input);
 };
 
 // void MARG_FUSE(MPU9150 marg[2]);//most likely only 2 margs
