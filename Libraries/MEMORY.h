@@ -4,10 +4,10 @@
 #include"Arduino.h"
 #include<EEPROM.h>
 
-void store_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16_t offT)
+void store_memory(int j, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16_t offT, int16_t axis_gain[3] )
 {
-	uint16_t A[3],G[3],M[3],T;
-	uint16_t add = i*20;
+	uint16_t A[3],G[3],M[3],T,gain[3];
+	uint16_t add = j*26;
 	for(int i = 0;i<3;i++)
 	{
 		A[i] = uint16_t(offA[i]);
@@ -20,6 +20,10 @@ void store_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int1
 
 		M[i] = uint16_t(offM[i]);
 		EEPROM.write(add,M[i]);
+		add += 2;
+
+		gain[i] = uint16_t(axis_gain[i]);
+		EEPROM.write(add,gain[i]);
 		add += 2;
 	}
 	T = uint16_t(offT);
@@ -38,10 +42,10 @@ bool check_memory()
 	return 0;
 }
 
-void read_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16_t &offT)
+void read_memory(int j, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16_t &offT, int16_t axis_gain[3])
 {
-	uint16_t A[3],G[3],M[3],T;
-	uint16_t add = i*20;
+	uint16_t A[3],G[3],M[3],T,gain[3];
+	uint16_t add = j*26;
 	for(int i = 0;i<3;i++)
 	{
 		EEPROM.read(add, &A[i]);
@@ -52,6 +56,9 @@ void read_memory(int i, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16
 		add += 2;
 		EEPROM.read(add, &M[i]);
 		offM[i] = int16_t(M[i]);
+		add += 2;
+		EEPROM.read(add, &gain[i]);
+		axis_gain[i] = int16_t(gain[i]);
 		add += 2;
 	}
 	EEPROM.read(add, &T);
