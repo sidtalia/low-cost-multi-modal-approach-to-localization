@@ -332,33 +332,40 @@ void MPU9150::mag_caliberation()
     digitalWrite(MPU_LED,0);
   }
   blink(2);
+  float magnitude[3],total=0;
   for(j=0;j<3;j++)
   {
     offsetM[j] = (oldmin[j]+oldmax[j])/2;
+    magnitude[j] = fabs(oldmax[j] - oldmin[j]);
+    total += magnitude[j];
   }
-
+  axis_gain[0] = int16_t(3000*(magnitude[0]/total));
+  axis_gain[1] = int16_t(3000*(magnitude[1]/total));
+  axis_gain[2] = int16_t(3000*(magnitude[2]/total));
   return;
 }
 
-void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT) //remember that arrays are passed by address by default.
+void MPU9150::getOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT, int16_t gain[3]) //remember that arrays are passed by address by default.
 {
   for(int i=0;i<3;i++)
   {
     offA[i] = offsetA[i];
     offG[i] = offsetG[i];
     offM[i] = offsetM[i];
+    gain[i] = axis_gain[i];
   }
   offT = offsetT;
   return;
 }
 
-void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3],int16_t &offT)
+void MPU9150::setOffset(int16_t offA[3],int16_t offG[3],int16_t offM[3], int16_t &offT, int16_t gain[3])
 {
   for(int i=0;i<3;i++)
   {
     offsetA[i] = offA[i];
     offsetG[i] = offG[i];
     offsetM[i] = offM[i];
+    axis_gain[i] = gain[i];
   }
   offsetT = offT;
   return;
@@ -381,7 +388,8 @@ void MPU9150::readAll(bool mag_Read)
     readMag();
     for(int i=0;i<3;i++)
     {
-      M[i] = (float)(m[i] - offsetM[i]);
+      M[i] = (float)(m[i] - offsetM[i]); //hard iron shit
+      M[i] /= (float(axis_gain[i])*1e-3); //soft iron shit.
     }
   }
   return;
@@ -405,7 +413,7 @@ float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, flo
 
   del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45 - roll) ) );
 
-  mag_gain = 0.01*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
+  mag_gain = 0.1*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
 
   // if(mh > 180 && mh < 360)
   // {
@@ -527,6 +535,8 @@ void MPU9150::compute_All()
     }
     innovation[2] = mh;//dummy
     mag_gain /= max(fabs(yawRate),1);
+    mag_gain *= mh_Error*200;//scale the gain in proportion to the mh_Error
+    Sanity_Check(0.05,mag_gain);//just in case
     mh = (1-mag_gain)*mh + mag_gain*(mag_head + MAG_UPDATE_TIME*temp);//temp*0.01 is to compensate for the magnetometer lag.
     innovation[2] -= mh; //actual innovation
     mh_Error *= (1-mag_gain); //reduce the error.
@@ -638,7 +648,7 @@ void MPU9150::Velcity_Update(float &velocity)
 //     marg[1].roll_Error = marg[0].roll_Error;
 
 //     marg[1].pitch = marg[0].pitch;
-//     marg[1].pitch_Error = marg[0].pitch_(1-Erro)r;
+//     marg[1].pitch_Error = marg[0].pitch_(1-Error);
 
 //     marg[1].mh = marg[0].mh;
 //     marg[1].mh_Error = marg[0].mh_Error;
