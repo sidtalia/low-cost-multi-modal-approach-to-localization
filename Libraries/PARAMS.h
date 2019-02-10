@@ -5,7 +5,7 @@
 #define LOOP_FREQUENCY 400
 #define dt_micros 2500
 
-#define ride_height (float)0.06 //6.2cms height of the sensor.
+#define ride_height (float)0.05 //6.2cms height of the sensor.
 #define DIST_BW_ACCEL_AXLE (float)0.225// distance between rear axle and accelerometer
 #define THROTTLE_OFFSET 1535
 #define DECLINATION (float)-1.5
