@@ -47,20 +47,20 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 
     if(SQ>80 && SQ<=100)
     {
-      P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
+      P_Error = CALIBERATION*(256/SQ);//the smallest distance it can measure divided by surface Quality.
                                         //more surface quality = more reliable least count.
       V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division      
     }
 
-    if(SQ>60 && SQ<=80)
+    if(SQ>40 && SQ<=80)
     {
-      P_Error = CALIBERATION*(25600/SQ);//the smallest distance it can measure divided by surface Quality.
+      P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
                                         //more surface quality = more reliable least count.
       V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division
     }
-    else if(SQ<=60 && SQ>10)
+    else if(SQ<=40 && SQ>10)
     {
-      P_Error = 1e3*CALIBERATION*(25600/SQ); //some very large value that the optical flow sensor would never actually have.
+      P_Error = 1e3*CALIBERATION*(2560/SQ); //some very large value that the optical flow sensor would never actually have.
       V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
     }
     else
@@ -70,9 +70,9 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     }
 
     X -= omega[1]*ride_height*dt;
-    X = LPF(0,X);
+    // X = LPF(0,X);
     Y += omega[0]*ride_height*dt; //compensation for rotations ya know.
-    Y = LPF(1,Y);
+    // Y = LPF(1,Y);
   } 
 	else if(motion & 0x10)  //buffer overflow
 	{
@@ -85,9 +85,9 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
   }
 
   V_x = X*LOOP_FREQUENCY;
-  V_x = LPF(2,V_x);
+  // V_x = LPF(2,V_x);
   V_y = Y*LOOP_FREQUENCY;
-  V_y = LPF(3,V_y);
+  // V_y = LPF(3,V_y);
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
