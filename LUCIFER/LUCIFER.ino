@@ -56,16 +56,17 @@ void setup()
   
   marg.initialize();
   opticalFlow.initialize();
+  opticalFlow.caliberation(ride_height,0.0f ); //ride_height is stored in the param's header
   gps.initialize();
 
-  int16_t A[3],G[3],M[3],T;
+  int16_t A[3],G[3],M[3],T,gain[3];
   if(!check_memory()) //if there are no offsets in the memory
   {
-    bool avail = gcs.Get_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT, opticalFlow.ofc);
+    bool avail = gcs.Get_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT,marg.axis_gain);
     if(avail)//if GCS already has offsets
     {
-      marg.getOffset(A,G,M,T);
-      store_memory(0, A,G,M,T);
+      marg.getOffset(A,G,M,T,gain);
+      store_memory(0, A,G,M,T,gain);
     }
     //if GCS has no offsets and we don't have the offsets
     else
@@ -83,20 +84,18 @@ void setup()
       marg.mag_caliberation();
 
       gcs.Send_Calib_Command(4);
-      delay(4000);
-      opticalFlow.run_caliberation();
       
-      marg.getOffset(A,G,M,T);
-      store_memory(0, A,G,M,T,opticalFlow.ofc);
+      marg.getOffset(A,G,M,T,gain);
+      store_memory(0, A,G,M,T,gain);
       
-      gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT); //send new found offsets to GCS
+      gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT, marg.axis_gain); //send new found offsets to GCS
     }
   }
   else
   {
-    read_memory(0, A,G,M,T);
-    marg.setOffset(A,G,M,T);
-    gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT); //send new found offsets to GCS
+    read_memory(0, A,G,M,T,gain);
+    marg.setOffset(A,G,M,T,gain);
+    gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT, marg.axis_gain); //send new found offsets to GCS
   }
 
   marg.Setup();
@@ -105,7 +104,12 @@ void setup()
   long timeout = millis();
   do //wait till we get a GPS fix
   {
-    gcs.Send_State(MODE_STANDBY, gps.longitude, gps.latitude, marg.V, marg.mh, marg.pitch, marg.roll);
+    gcs.Send_State(MODE, gps.latitude, gps.longitude, marg.V, marg.mh+marg.yawRate*dt*0.5, marg.pitch, marg.roll, marg.Ha, opticalFlow.P_Error, 0, marg.mh_Error, marg.V_Error, 0,gps.Hdop);
+    if(gps.Hdop>100000)//if gps is unavailable, skip.
+    {
+      delay(100);
+      break;
+    }
   }
   while(gps.fix_type()<2 && millis() - timeout < FIX_TIMEOUT );
   if(gps.fix_initial_position()) //get initial coordinates
@@ -130,29 +134,61 @@ void loop()
                     //I unit test each of the functions to check how much time they take to execute.
   //get sensor data
   marg.compute_All(); //get AHRS (and other things as well) from IMU. 500us, has failsafe in case sensor is reset somehow
-
+  marg.get_Rotations(opticalFlow.omega); //transfer rates of rotation
   opticalFlow.updateOpticalFlow(); //update optical flow 150us
   gps.localizer(); //update gps. 12us
   
   car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, marg.mh, marg.mh_Error, marg.Ha, marg.V, marg.V_Error,
              opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
-  marg.V = car.Velocity;
+  marg.Velcity_Update(car.Velocity);
   marg.V_Error = car.VelError;
   marg.bias = car.AccBias ; //transfer the bias. this is pretty much the reason why the update function does not take arguments by reference. its because the values need to be copied to 2 mpu objects anyway. 
 //
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
-  gcs.Send_State(MODE, car.latitude, car.longitude, car.Velocity, marg.mh, marg.pitch, marg.roll); //also regulated at 10Hz
-  
-  if(message == MODE_ID)
+  gcs.Send_State(MODE, car.longitude, car.latitude, car.Velocity, marg.mh, gps.longitude, gps.latitude, marg.Ha, opticalFlow.P_Error, car.PosError_tot, marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
+  if(gcs.get_Mode()!=255)
   {
     MODE = gcs.get_Mode();
   }
   
   get_Inputs(inputs); //get inputs from r/c receiver
-  if(inputs[5] <= 1100)
+  if(gcs.failsafe)
   {
-    MODE = MODE_MANUAL;
+    if(inputs[5] <= 1100)
+    {
+      MODE = MODE_STANDBY;
+    }
+    if(inputs[5] > 1100 && inputs[5] < 1600)
+    {
+      MODE = MODE_MANUAL;
+    }
+    if(inputs[5] > 1600)
+    {
+      MODE = CRUISE;
+    }
+    if(inputs[2]<1000)
+    {
+      MODE = MODE_STANDBY;
+    }
+  }
+
+  if(message == CALIB_ID)//recalculate offsets
+  {
+    int16_t A[3],G[3],M[3],gain[3],T;
+    gcs.Send_Calib_Command(1); //let GCS know we are doing calib
+    delay(2000);
+    marg.gyro_caliberation();
+    //keep the car still, rotate it 180, keep the car still again, rotate 180.
+    gcs.Send_Calib_Command(2);
+    delay(2000);
+    marg.accel_caliberation();
+    
+    marg.getOffset(A,G,M,T,gain);
+    store_memory(0, A,G,M,T,gain);
+    
+    gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT,marg.axis_gain); //send new found offsets to GCS
+    timer = micros(); //reset timer  
   }
   
   if(message == WP_ID)
@@ -231,7 +267,7 @@ void loop()
   {
     gcs.Send_Calib_Command(5);
   }
-
+  control.get_speed(marg.encoder_velocity); //comment out if not using output throttle signal as a rough speed estimate
   T = max(micros()-timer,T);
   while(micros()-timer < dt_micros ); //dt_micros is defined in PARAMS.h
 }
