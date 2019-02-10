@@ -477,7 +477,7 @@ sanity check : marg.failure ? initialize() : do nothing
 #define GYRO_SCALING_FACTOR  (float)0.030516
 
 #define GYRO_VARIANCE (float)GYRO_SCALING_FACTOR*0.0025 //default.
-#define ACCEL_VARIANCE (float)0.5 //0.1m/s*s error.
+#define ACCEL_VARIANCE (float)0.1 //0.1m/s*s error.
 #define CIRCULAR_VELOCITY_ERROR (ACCEL_VARIANCE + GYRO_VARIANCE)*10
 
 #define MAG_UPDATE_TIME (float)0.01
@@ -535,6 +535,7 @@ class MPU9150 {
         float V_Error;
         int16_t offsetA[3],offsetG[3],offsetM[3],offsetT;//offsets need to be saved you know.
         int16_t axis_gain[3];
+        float invert_axis_gain[3];
         uint8_t error_code;
         bool failure;
         float mag_mag;
