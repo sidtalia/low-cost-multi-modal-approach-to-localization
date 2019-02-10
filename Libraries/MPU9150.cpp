@@ -389,7 +389,7 @@ void MPU9150::readAll(bool mag_Read)
     for(int i=0;i<3;i++)
     {
       M[i] = (float)(m[i] - offsetM[i]); //hard iron shit
-      M[i] /= (float(axis_gain[i])*1e-3); //soft iron shit.
+      M[i] *= invert_axis_gain[i];//(float(axis_gain[i])*1e-3); //soft iron shit.
     }
   }
   return;
@@ -415,16 +415,16 @@ float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, flo
 
   mag_gain = 0.1*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
 
-  // if(mh > 180 && mh < 360)
-  // {
-  //   del = 360 - del;
-  // }
+  if(mh > 180 && mh < 360)
+  {
+    del = 360 - del;
+  }
 
 
-  // if(mh < 310 && mh > 50 && mh <130 && mh > 230)
-  // {
-  //   heading = del*(1-mag_gain) + mag_gain*heading;
-  // }
+  if(mh < 310 && mh > 50 && mh <130 && mh > 230)
+  {
+    heading = del*(1-mag_gain) + mag_gain*heading;
+  }
   heading += DECLINATION;
   if(heading<0) //atan2 goes from -pi to pi 
   {
@@ -535,7 +535,7 @@ void MPU9150::compute_All()
     }
     innovation[2] = mh;//dummy
     mag_gain /= max(fabs(yawRate),1);
-    mag_gain *= mh_Error*200;//scale the gain in proportion to the mh_Error
+    mag_gain *= mh_Error;//scale the gain in proportion to the mh_Error
     Sanity_Check(0.05,mag_gain);//just in case
     mh = (1-mag_gain)*mh + mag_gain*(mag_head + MAG_UPDATE_TIME*temp);//temp*0.01 is to compensate for the magnetometer lag.
     innovation[2] -= mh; //actual innovation
@@ -580,6 +580,7 @@ void MPU9150::get_Rotations(float omega[2])
 
 void MPU9150::Setup()//initialize the state of the marg.
 {
+  for(int i=0;i<3;i++){ invert_axis_gain[i] = 1000/float(axis_gain[i]); }
   readAll(1); //read accel,gyro,mag 
   delay(10);
   readAll(1);
