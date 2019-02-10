@@ -129,46 +129,46 @@ public :
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
+
 		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because the car's motion is constrained. While you could compute the 
 								//Velocity in the NED fashion, it would be equivalent to going on a fools errand here. If there is a constraint, exploit it.
+		if(OF_P_Error>1 || Velocity>3) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
+		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
+			VelGain = 0;
+		}	
+
 		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-		if(OF_P_Error>1)
-		{
-			AccBias += (Vacc - Velocity)*VelGain*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
-		}
+		AccBias += (Vacc - Velocity)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+		
 		//this is the covariance stuff(using the corrected estimates to correct errors in states other than the one being corrected)
 		//distance moved in last cycle
+		
 		dS = Velocity*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
 		Xacc = X + dS*cosmh;// + sinmh*OF_X; //estimated X position. OF_X is the sideways movement measured by the optical flow senosr(can't do that with a wheel encoder can you now?)
 		Yacc = Y + dS*sinmh;// + cosmh*OF_X; //estimated Y position
 		dSError = VelError*dt;//error in instantaneous distance travelled
 		dTheta = mh_Error*DEG2RAD;//error in heading
 
-		PosError_Y += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
-		PosError_X += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives. See how much simpler it is to
+		PosError_Y += dSError*fabs(cosmh) - dS*fabs(sinmh)*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
+		PosError_X += dSError*fabs(sinmh) + dS*fabs(cosmh)*dTheta;//the jacobian is simply a matrix that contains the partial derivatives. See how much simpler it is to
 														//understand when you DON'T use matrices(looking at you Ardupilot, px4, etc)??
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
-		X += cosmh*OF_Y + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
-		Y += sinmh*OF_Y + cosmh*OF_X; //
+		X += cosmh*OF_Y;// + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
+		Y += sinmh*OF_Y;// + cosmh*OF_X; //
 
 		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
 		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
-
-		X = X*PosGain_X + (1-PosGain_X)*Xacc;//in most implementations, you would see this happening through matrix multiplication. I hate that.
-		Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//Yes matrix multiplication makes it easier for programmers, but it makes it impossible to understand for 
-											 //just about every body else who doesn't already have a degree in thermonuclear astrophysics(sarcasm).
-											 //basically if someone needs background knowledge in some subject just to understand what the code is doing,
-											 // you need to work on the understandability of your code 
-											 //(and if you think its not important then you might as well straight up work in hex code)
-		PosError_X *= (1-PosGain_X);
-		PosError_Y *= (1-PosGain_Y);
+		X = X*PosGain_X + (1-PosGain_X)*Xacc;//in most implementations, you would see this happening through matrix multiplication. 
+		Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//This is partly because the problem is actually a 3 dimensional position problem for drones whereas it is a 2 dimensional problem for cars											 
+		PosError_X *= (1-PosGain_X);//and as you can see, the number of lines I would have to write for 3 dimensional fusion would be even greater than this,
+		PosError_Y *= (1-PosGain_Y);// which makes matrix multiplication methods look more attractive.
 			                         
-		if(position_reset && Hdop < 2.5 && tick)
+		if(position_reset && Hdop < 2.5 && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
 		{
 			lastLat = lat;
 			lastLon = lon;
@@ -209,7 +209,7 @@ public :
 
 			lastLon = lon;//setting lastLat, lastLon for next iteration
 			lastLat = lat; 
-			Hdop *= 0.1;
+			// Hdop *= 0.1;
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
 			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
 			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
