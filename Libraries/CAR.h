@@ -100,13 +100,13 @@ class controller
 		if(throttle<1530)
 		{
 			speed = 0;
-			speed_Error = 1e2;
+			speed_Error = 1e5;
 		}	
 		else
 		{
 			float dummy = (throttle - THROTTLE_OFFSET)/OPEN_GAIN;
 			speed = LPF(0,dummy);
-			speed_Error = fabs(speed - dummy);//error is proportional to the target - estimated speed by Low pass filter model.
+			speed_Error = 1e4*fabs(speed - dummy);//error is proportional to the target - estimated speed by Low pass filter model.
 		}
 	}
 
