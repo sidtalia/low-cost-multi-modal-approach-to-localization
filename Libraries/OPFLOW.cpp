@@ -40,7 +40,7 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 
     if(SQ>100)
     {
-      P_Error = CALIBERATION*(256/SQ);//the smallest distance it can measure divided by surface Quality.
+      P_Error = CALIBERATION*(25/SQ);//the smallest distance it can measure divided by surface Quality.
                                         //more surface quality = more reliable least count.
       V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division
     }
@@ -69,9 +69,9 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
       V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
     }
 
-    X -= omega[1]*ride_height*dt;
+    X += omega[1]*ride_height*dt; //the sign was flipped on 11/2/19 3:28pm
     // X = LPF(0,X);
-    Y += omega[0]*ride_height*dt; //compensation for rotations ya know.
+    Y -= omega[0]*ride_height*dt; //compensation for rotations ya know. this sign was also flipped. please run a test.
     // Y = LPF(1,Y);
   } 
 	else if(motion & 0x10)  //buffer overflow
@@ -85,9 +85,9 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
   }
 
   V_x = X*LOOP_FREQUENCY;
-  // V_x = LPF(2,V_x);
+  V_x = LPF(2,V_x);
   V_y = Y*LOOP_FREQUENCY;
-  // V_y = LPF(3,V_y);
+  V_y = LPF(3,V_y);
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
