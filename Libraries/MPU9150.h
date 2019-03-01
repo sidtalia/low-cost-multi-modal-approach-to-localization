@@ -473,18 +473,19 @@ sanity check : marg.failure ? initialize() : do nothing
 #define MPU9150_DMP_MEMORY_CHUNK_SIZE   16 
 
 #define MPU_LED PC13
-#define ACCEL_SCALING_FACTOR (float)0.0024412
-#define GYRO_SCALING_FACTOR  (float)0.030516
+#define ACCEL_SCALING_FACTOR (float) 0.0024412
+#define GYRO_SCALING_FACTOR  (float) 0.061035
 
-#define GYRO_VARIANCE (float)GYRO_SCALING_FACTOR*0.0025 //default.
-#define ACCEL_VARIANCE (float)0.1 //0.1m/s*s error.
-#define CIRCULAR_VELOCITY_ERROR (ACCEL_VARIANCE + GYRO_VARIANCE)*10
+#define GYRO_FILTER_FACTOR (float)1000*GYRO_SCALING_FACTOR
+#define GYRO_VARIANCE (float) GYRO_SCALING_FACTOR*0.0025 //default.
+#define ACCEL_VARIANCE (float) 0.1 //0.1m/s*s error.
+#define CIRCULAR_VELOCITY_ERROR (float) (ACCEL_VARIANCE + GYRO_VARIANCE)*100
 
 #define MAG_UPDATE_TIME (float)0.01
-#define MAG_UPDATE_TIME_MS 1000*MAG_UPDATE_TIME
+#define MAG_UPDATE_TIME_MS (int)1000*MAG_UPDATE_TIME
 
 
-#define TEMP_COMP -0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
+#define TEMP_COMP (float)-0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
                         //this is valid only for 1000dps gyro scaling and is applied directly to temp readings (no scaling etc req.)
 //aaah. so much cleaner.
 
@@ -524,8 +525,31 @@ class MPU9150 {
         void compute_All(); //computes the state of the marg during runtime.
         void Setup(); //initialize the state of the marg.
         float temp_Compensation(int16_t temp);
-        void Velcity_Update(float &velocity);
+        void Velocity_Update(float &velocity,float VelError, float Accbias);
         void get_Rotations(float omega[2]);
+        float get_Anet()
+        {
+            return fast_sqrt(A[0]*A[0] + A[1]*A[1] + A[2]*A[2]);
+        }
+
+        // void getG(float gyro[3])
+        // {
+        //     gyro[0] = DEG2RAD*G[0];
+        //     gyro[1] = DEG2RAD*G[1];
+        //     gyro[2] = DEG2RAD*G[2];
+        // }
+        // void getA(float acc[3])
+        // {
+        //     acc[0] = A[0];
+        //     acc[1] = A[1];
+        //     acc[2] = A[2];
+        // }
+        // void getM(float mag[3])
+        // {
+        //     mag[0] = M[0];
+        //     mag[1] = M[1];
+        //     mag[2] = M[2];
+        // }
 
         float roll,pitch,yawRate,mh;
         float roll_Error,pitch_Error,mh_Error;
