@@ -2,13 +2,14 @@
 #define _PARAMS_H_
 
 #define dt (float)0.0025
-#define LOOP_FREQUENCY 400
-#define dt_micros 2500
+#define LOOP_FREQUENCY (float)400
+#define dt_micros (int)2500
 
 #define ride_height (float)0.05 //6.2cms height of the sensor.
 #define DIST_BW_ACCEL_AXLE (float)0.225// distance between rear axle and accelerometer
 #define THROTTLE_OFFSET 1535
-#define DECLINATION (float)-1.5
+#define DECLINATION (float)-5.5
+#define GPS_GLITCH_SPEED (float) 20.0
 
 #define MODE_STOP 0x00
 #define MODE_STANDBY 0X01
