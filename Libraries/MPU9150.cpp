@@ -91,12 +91,12 @@ void MPU9150::setAddress(uint8_t address)//default constructor for initializing 
 bool MPU9150::initialize() //initialize the gyro with the apt scaling factors.
 {
     setClockSource(MPU9150_CLOCK_PLL_XGYRO);
-    setFullScaleGyroRange(MPU9150_GYRO_FS_1000);
+    setFullScaleGyroRange(MPU9150_GYRO_FS_2000);
     long timeout = micros();
     error_code = 0;
-    while(getFullScaleGyroRange() != MPU9150_GYRO_FS_1000)
+    while(getFullScaleGyroRange() != MPU9150_GYRO_FS_2000)
     {
-      setFullScaleGyroRange(MPU9150_GYRO_FS_1000); //keep trying 
+      setFullScaleGyroRange(MPU9150_GYRO_FS_2000); //keep trying 
       if(micros() - timeout>1000)
       {
         error_code += 1;
@@ -269,7 +269,7 @@ void MPU9150::gyro_caliberation()
 
 void MPU9150::accel_caliberation()
 {
-  //place the car on a roughly horizontal surface, wait for the led to blink twice, then thrice, then rotate the car 180 degrees within
+  //place the car on a roughly horizontal surface, wait for the led to blink twice, then thrice, then rotate the car M_PI_DEG degrees within
   //5 seconds, the process repeats. 
   float dummy[2][3] = {{0,0,0},
                        {0,0,0}};
@@ -380,7 +380,7 @@ void MPU9150::readAll(bool mag_Read)
     // A[i] = LPF(i,A[i]);
 
     G[i] = float(g[i] - offsetG[i])*GYRO_SCALING_FACTOR + temp_Compensation(t);
-    G[i] = filter_gyro(lastG[i],G[i]);
+    // G[i] = filter_gyro(lastG[i],G[i]);
     lastG[i] = G[i];
   }
   if(mag_Read)
@@ -398,37 +398,37 @@ void MPU9150::readAll(bool mag_Read)
 float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, float sinRoll) //function to compensate the magnetometer readings for the pitch and the roll.
 {
   float heading;
-  //the following formula is compensates for the pitch and roll of the object when using magnetometer reading. 
+  //the following formula compensates for the pitch and roll of the object when using magnetometer reading. 
   float Xh = -M[0]*cosRoll + M[2]*sinRoll;
   float Yh = M[1]*cosPitch - M[0]*sinRoll*sinPitch + M[2]*cosRoll*sinPitch;
-  float mag = 0.6805*sqrt(M[0]*M[0] + M[1]*M[1] + M[2]*M[2]);
+  float mag = fast_sqrt(M[0]*M[0] + M[1]*M[1] + M[2]*M[2])*0.6805f;
 
-  Xh = Xh*0.2 + 0.8*magbuf[0]; //smoothing out the X readings
+  Xh = Xh*0.2f + magbuf[0]*0.8f; //smoothing out the X readings
   magbuf[0] = Xh;
 
-  Yh = Yh*0.2 + 0.8*magbuf[1]; //smoothing out the Y readings
+  Yh = Yh*0.2f + magbuf[1]*0.8f; //smoothing out the Y readings
   magbuf[1] = Yh;
   
   heading = RAD2DEG*atan2(Yh,Xh);
 
-  del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45 - roll) ) );
+  del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45.0f - roll) ) );
 
-  mag_gain = 0.1*spike(mag,49); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
+  mag_gain = spike(mag,49.0f); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
 
-  if(mh > 180 && mh < 360)
+  if(mh > M_PI_DEG && mh < M_2PI_DEG)
   {
-    del = 360 - del;
+    del = M_2PI_DEG - del;
   }
 
 
-  if(mh < 310 && mh > 50 && mh <130 && mh > 230)
+  if(mh < 310.0f && mh > 50.0f && mh <130.0f && mh > 230.0f)
   {
     heading = del*(1-mag_gain) + mag_gain*heading;
   }
   heading += DECLINATION;
-  if(heading<0) //atan2 goes from -pi to pi 
+  if(heading<0.0f) //atan2 goes from -pi to pi 
   {
-    return 360 + heading; //2pi - theta
+    return M_2PI_DEG + heading; //2pi - theta
   }
 
   return heading;
@@ -463,13 +463,13 @@ void MPU9150::compute_All()
 
   readAll(mag_Read);//read the mag if the condition is true.
   //PREDICTION STEP (ROLL AND PITCH FIRST)
-  d_Yaw_Radians = sin(G[2]*dt*DEG2RAD); //change in yaw around the car's Z axis (this is not the change in heading)
+  d_Yaw_Radians = (G[2]*dt*DEG2RAD); //change in yaw around the car's Z axis (this is not the change in heading)
   roll  += (G[1] - gyro_Bias[1])*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
   cosRoll = cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
   _sinRoll = -sin(roll*DEG2RAD);
   //chaning the roll doesn't change the heading. Changing the pitch can change the heading.
   //YES there will be some error in pitch that will cause an error in the roll, that is exactly why I have a low pass filter applied to both pitch and roll for values between 2 and 5 degrees
-  pitch += dt*(G[0]*cosRoll - G[2]*_sinRoll - gyro_Bias[0]);// + roll*d_Yaw_Radians; //compensates for the effect of yaw and roll on pitch
+  pitch += dt*(G[0]*cosRoll - G[2]*_sinRoll - gyro_Bias[0]) + roll*d_Yaw_Radians; //compensates for the effect of yaw and roll on pitch
   cosPitch = cos(pitch*DEG2RAD);
   _sinPitch = -sin(pitch*DEG2RAD);
 
@@ -487,7 +487,7 @@ void MPU9150::compute_All()
   trust = exp_spike(0,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
   trust_1 = 1-trust;//the lesser the trust in accelerometer measurements (kind of like scaling up/down the R matrix)
   
-  if( fabs(A[1])<GRAVITY-1 ) //sanity check on accelerations so that we don't get Naans
+  if( fabs(A[1])<GRAVITY-1.0f ) //sanity check on accelerations so that we don't get Naans
   {
     innovation[0] = pitch; //dummy;
     pitch = trust_1*pitch + trust*RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
@@ -495,7 +495,7 @@ void MPU9150::compute_All()
     innovation[0] -= pitch; //actual innovation
     gyro_Bias[0] += trust*innovation[0]*dt; //get bias
   }
-  if( fabs(A[0])<GRAVITY-1 )
+  if( fabs(A[0])<GRAVITY-1.0f )
   {
     innovation[1] = roll;
     roll  = trust_1*roll  - trust*RAD2DEG*asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
@@ -506,47 +506,47 @@ void MPU9150::compute_All()
   yawRate = G[2] - gyro_Bias[2]; // yaw_Rate.
 
   //conditional low pass filtering between 1 and 4 degrees. 100Hz LPF  
-  // if(fabs(roll)>1&&fabs(roll)<4)
-  // {
-  roll = LPF(0,roll);
-  // }
-  // if(fabs(pitch)>1&&fabs(pitch)<4)
-  // {
-  pitch = LPF(1,pitch); //applying a 100 Hz LPF to these signals. 
-  // }
-  Sanity_Check(90,roll); //sanity checks.
-  Sanity_Check(90,pitch);
-
-  if(mh >= 360.0) // the mh must be within [0.0,360.0]
+  if(fabs(roll)>1.0f&&fabs(roll)<4.0f)
   {
-    mh -= 360.0;
+    roll = LPF(0,roll);
   }
-  if(mh < 0)
+  if(fabs(pitch)>1.0f&&fabs(pitch)<4.0f)
   {
-    mh += 360.0;
+    pitch = LPF(1,pitch); //applying a 100 Hz LPF to these signals. 
+  }
+  Sanity_Check(M_PIB2_DEG,roll); //sanity checks.
+  Sanity_Check(M_PIB2_DEG,pitch);
+
+  if(mh >= M_2PI_DEG) // the mh must be within [0.0,M_2PI_DEG.0]
+  {
+    mh -= M_2PI_DEG;
+  }
+  if(mh < 0.0f)
+  {
+    mh += M_2PI_DEG;
   }
   // CORRECTION OF HEADING AND REDUCING ERROR AFTER CORRECTION.
   if( mag_Read )//check if mag has been read or not.
   { 
     float mag_head = tilt_Compensate(cosPitch,cosRoll,-_sinPitch,-_sinRoll);
-    if(fabs(mag_head - mh)>180) // this happens when the heading is in the range of 5-0-355 degrees
+    if(fabs(mag_head - mh)>M_PI_DEG) // this happens when the heading is in the range of 5-0-355 degrees
     {
-      mh = 360-mh;// doing this because mag is the measured value. can't change that you know.
+      mh = M_2PI_DEG-mh;// doing this because mag is the measured value. can't change that you know.
     }
     innovation[2] = mh;//dummy
-    mag_gain /= max(fabs(yawRate),1);
+    mag_gain /= max(fabs(yawRate),1.0f);
     mag_gain *= mh_Error;//scale the gain in proportion to the mh_Error
-    Sanity_Check(0.05,mag_gain);//just in case
-    mh = (1-mag_gain)*mh + mag_gain*(mag_head + MAG_UPDATE_TIME*temp);//temp*0.01 is to compensate for the magnetometer lag.
+    Sanity_Check(0.05f,mag_gain);//just in case
+    mh = (1.0f-mag_gain)*mh + mag_gain*(mag_head);
     innovation[2] -= mh; //actual innovation
-    mh_Error *= (1-mag_gain); //reduce the error.
+    mh_Error *= (1.0f-mag_gain); //reduce the error.
     gyro_Bias[2] += mag_gain*innovation[2]*dt;
   }
   //Estimating speed.
   Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// world frame 
-  Sanity_Check(12,Ha);
+  Sanity_Check(12.0f,Ha);
   La = A[0] - GRAVITY*_sinRoll; //lateral acceleration in global reference. 
-  if(fabs(yawRate)>10) //this check is to ensure a decent signal to noise ratio.
+  if(fabs(yawRate)>10.0f) //this check is to ensure a decent signal to noise ratio.
   {
     float radius = V/(yawRate*DEG2RAD);//estimating speed using (V^2/R) / (V/R) = A/yaw_rate
     float theta = atan(DIST_BW_ACCEL_AXLE/radius);
@@ -554,21 +554,19 @@ void MPU9150::compute_All()
 
     V_mes = -La/(DEG2RAD*yawRate);
     V += Ha*dt;
-    float diff = V;
-    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);//expression for error. God I wish this was fixed too!
+    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error. God I wish this was fixed too!
     gain = V_Error/(CIRCULAR_VELOCITY_ERROR + V_Error); //CIRCULAR VELOCITY ERROR is fixed and is defined in the header.
-    V = (1-gain)*V + gain*V_mes;//
-    V_Error *= (1-gain);
-    bias += (diff - V)*gain*dt;
+    V = (1.0f-gain)*V + gain*V_mes;//
+    V_Error *= (1.0f-gain);
   }
   else//if the car ain't turnin 
   {
     V += Ha*dt;
-    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2*GRAVITY*my_cos(2*pitch*DEG2RAD)*pitch_Error);
+    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);
   }
   gain = V_Error/(encoder_velocity[1] + V_Error); //encoder_velocity[0] is error, [1] is actual speed
-  V = (1-gain)*V + gain*encoder_velocity[0]; //not reducing error because to be honest there is no error reduction happening here okay folks
-
+  V = (1.0f-gain)*V + gain*encoder_velocity[0]; //not reducing error because to be honest there is no error reduction happening here okay folks
+  V_Error *= (1-gain);
   return;
 }//570us worst case. 
 
@@ -595,7 +593,7 @@ void MPU9150::Setup()//initialize the state of the marg.
 float MPU9150::filter_gyro(float mean, float x)
 {
   float i =  x - mean;//innovation
-  i *= (i*i)/(1000*GYRO_SCALING_FACTOR + (i*i) ); //notch filter around the mean value.
+  i *= (i*i)/(GYRO_FILTER_FACTOR + (i*i) ); //notch filter around the mean value.
   return mean + i;
 }
 
@@ -613,11 +611,13 @@ float MPU9150::temp_Compensation(int16_t temp)
   return GYRO_SCALING_FACTOR*TEMP_COMP*(temp - offsetT);
 }
 
-void MPU9150::Velcity_Update(float &velocity)
+void MPU9150::Velocity_Update(float &velocity,float VelError, float Accbias)
 {
   V = LPF(3,velocity);
   Sanity_Check(50,V);
   velocity = V; 
+  V_Error = VelError;
+  bias = Accbias; 
 }
 
 // void MARG_FUSE(MPU9150 marg[2])
