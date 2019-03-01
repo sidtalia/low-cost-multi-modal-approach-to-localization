@@ -4,15 +4,17 @@
 #include"PARAMS.h"
 #include"Arduino.h"
 
-#define DEFAULT_DT dt
-#define GPS_UPDATE_RATE 10 //gps update rate in Hz
-
+#define GPS_UPDATE_RATE (float)10 //gps update rate in Hz
+#define GPS_UPDATE_TIME (float)0.1
+#define MIN_GPS_SPEED (float) 5.0 //min speed till which gps is not used for velocity correction
+#define GPS_HDOP_LIM (float)2.5
 class STATE
 {
 public :
 	double iLat,iLon,lastLat,lastLon, latitude, longitude; 
 	float heading, Velocity, past_Velocity, last_Velocity,past_VelError, Acceleration;
 	float X, last_X, past_X, past_PosError_X, Y, last_Y, past_Y, past_PosError_Y, PosError_X, PosError_Y, VelError, PosError_tot;
+	float gps_X,gps_Y;
 	float AccBias;
 	bool position_reset;
 	float drift_Angle;
@@ -21,8 +23,8 @@ public :
 	{
 		iLat = lastLat = latitude = lat;
 		iLon = lastLon = longitude = lon;
-		X = last_X = past_X = 0;
-		Y = last_Y = past_Y = 0;
+		X = last_X = gps_X = past_X = 0;
+		Y = last_Y = gps_Y = past_Y = 0;
 		PosError_X = PosError_Y = float(Hdop);
 		if(Hdop>2.5)
 		{
@@ -107,7 +109,7 @@ public :
 
 		Now in a standard implementation of EKF, the above thing is actually represented by a jacobian matrix 
 		(the determinant of the jacobian should result in the above equations). Here, I lay out the inner workings in plain view for all to understand.
-		(this is pretty much all the difference between a linear KF and an EKF. Let me know if I missed something!)
+		(Also, note that our state transition is not linear. Let me know if I missed something!)
 
 		Also one more thing, This isn't a mathematically perfect implementation, and by perfect I mean absolutely perfect, like no discrepancies 
 		between this and theory sort of perfect. When estimating position from the optical Flow, I don't consider the error in the heading 
@@ -136,12 +138,11 @@ public :
 		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
 			VelGain = 0;
 		}	
-
 		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-		AccBias += (Vacc - Velocity)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+		// AccBias += (Vacc - Velocity)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
 		
 		//this is the covariance stuff(using the corrected estimates to correct errors in states other than the one being corrected)
 		//distance moved in last cycle
@@ -158,8 +159,8 @@ public :
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
-		X += cosmh*OF_Y;// + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
-		Y += sinmh*OF_Y;// + cosmh*OF_X; //
+		X += cosmh*OF_Y + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
+		Y += sinmh*OF_Y + cosmh*OF_X; //
 
 		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
 		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
@@ -167,13 +168,15 @@ public :
 		Y = Y*PosGain_Y + (1-PosGain_Y)*Yacc;//This is partly because the problem is actually a 3 dimensional position problem for drones whereas it is a 2 dimensional problem for cars											 
 		PosError_X *= (1-PosGain_X);//and as you can see, the number of lines I would have to write for 3 dimensional fusion would be even greater than this,
 		PosError_Y *= (1-PosGain_Y);// which makes matrix multiplication methods look more attractive.
-			                         
-		if(position_reset && Hdop < 2.5 && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
+		
+
+
+		if(position_reset && Hdop < GPS_HDOP_LIM && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
 		{
 			lastLat = lat;
 			lastLon = lon;
-			last_X = past_X = X - Velocity*0.1*cosmh; //too dumb to solve this problem in a sophisticated manner 
-			last_Y = past_Y = Y - Velocity*0.1*sinmh;
+			last_X = past_X = X - Velocity*GPS_UPDATE_TIME*cosmh; //too dumb to solve this problem in a sophisticated manner 
+			last_Y = past_Y = Y - Velocity*GPS_UPDATE_TIME*sinmh;
 			past_Velocity = last_Velocity = Velocity; //initialize the "past_velocity"
 			past_VelError = VelError;
 			past_PosError_X = PosError_X;
@@ -185,7 +188,7 @@ public :
 			position_reset = false;//prevent this code block from being re-executed
 		}
 		//POSITION ESTIMATION USING GPS + ESTIMATED POSITION FROM PREVIOUS METHODS
-		if(tick && (Hdop<2.5) && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
+		if(tick && (Hdop < GPS_HDOP_LIM) && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
 		{	/*
 			We have the current estimate for the position, but the gps data corresponds to the position 100ms ago (the gps update rate is 10Hz).
 			So we have to do the data fusion in the past, find the corrected position in the past and then shift the current position estimate by
@@ -201,11 +204,11 @@ public :
 			3.2 - 3.4 = -0.2 
 			meaning that my current position estimate is shifted to 5 + (-0.2) = 4.8 meters.
 			*/
-			float temp_X = last_X; //last corrected position estimates 
-			float temp_Y = last_Y; 
+			float temp_X = gps_X; //last gps coordinates.
+			float temp_Y = gps_Y; 
 
-			last_X = float((lon - iLon)*DEG2METER);// + last_X;//getting the last gps position 
-			last_Y = float((lat - iLat)*DEG2METER);// + last_Y; 
+			gps_X = last_X = float((lon - iLon)*DEG2METER);// + last_X;//getting the last gps position 
+			gps_Y = last_Y = float((lat - iLat)*DEG2METER);// + last_Y; 
 
 			lastLon = lon;//setting lastLat, lastLon for next iteration
 			lastLat = lat; 
@@ -217,11 +220,15 @@ public :
 			last_X = PosGain_X*last_X + (1-PosGain_X)*past_X; // past_X,past_Y are the past Estimates for position 
 			last_Y = PosGain_Y*last_Y + (1-PosGain_Y)*past_Y; // last_X,last_Y are the past corrected position 
 															  //(I didn't create separate variables for measurement because it seemed like a waste of memory)
-			
-			if(Velocity > 5)//explanation given in the codeblock itself.
+			GPS_Velocity = distancecalcy(gps_X,temp_X,gps_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from gps coordinates
+			if(GPS_Velocity>GPS_GLITCH_SPEED)//prevent gps glitch from doing me harm.
 			{
-				GPS_Velocity = distancecalcy(last_X,temp_X,last_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from corrected estimates
-				GPS_SAcc = distancecalcy(PosError_X*(1-PosGain_X*0.5), 0, PosError_Y*(1-PosGain_Y*0.5), 0, 0)*GPS_UPDATE_RATE; //Velocity error = position error/dt . this is according to the correlation between speed and distance
+				position_reset = true;
+			}
+			if(GPS_Velocity > MIN_GPS_SPEED && !position_reset)//explanation given in the codeblock itself.
+			{
+				//TODO : take component of gps velocity along the nose of the car.
+				GPS_SAcc = Hdop*GPS_UPDATE_RATE; //Velocity error = position error/dt . this is according to the correlation between speed and distance
 				//the velocity error is the average of the old position estimate error and the new position estimate error multiplied by the update rate. 
 				VelGain = (past_VelError/(past_VelError + GPS_SAcc)); //find the gain to correct the past estimate
 				last_Velocity = VelGain*GPS_Velocity + (1-VelGain)*past_Velocity;//correct the last velocity.
