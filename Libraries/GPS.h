@@ -3,6 +3,7 @@
 
 #include"Arduino.h"
 #include"PARAMS.h"
+#include"SIDMATH.h"
 
 #define GPS_BAUD 230400 
 /*
@@ -37,8 +38,10 @@ class GPS
 {
 public:
 	NAV_POSLLH posllh;
+	// long iTOW;
+	// float VelNED[3];
 	   //object of structure NAV_POSLLH
- 	double longitude,latitude,Hdop;
+ 	double longitude,latitude,Hdop;//,last_longitude,last_latitude,height,last_height;
  	bool tick,configured;
  	uint8_t config_msg_POSLLH[11] = {0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x02, 0x01, 0x0E, 0x47};
  	uint8_t config_msg_rate[14] = {0xB5, 0x62, 0x06, 0x08, 0x06, 0x00, 0x64, 0x00, 0x01, 0x00, 0x01, 0x00, 0x7A, 0x12};
@@ -194,9 +197,18 @@ public:
 	}
 	inline void updategps()  //make sure that you have while(!processGPS()){} before calling this if you are relying on an update from this function
 	{
-	    longitude= double(posllh.lon)*1e-7;
-	    latitude= double(posllh.lat)*1e-7;
+	    longitude = double(posllh.lon)*1e-7;
+	    latitude = double(posllh.lat)*1e-7;
 	    Hdop= double(posllh.hAcc)*1e-3; //HAcc in meters.
+	    //stuff below this point is for benchmarking purposes and can be removed if not using bolderflight uNav
+	 //    height = double(posllh.height)*1e-3;
+	 //    iTOW = posllh.iTOW;
+	 //    VelNED[0] = (latitude - last_latitude)*DEG2METER; //yes I know gps velocity is based on doppler effect but thats only for high speeds. for speeds less than 5m/s, i doubt doppler would help.
+		// VelNED[1] = (longitude- last_longitude)*DEG2METER;
+		// VelNED[2] = (last_height - height);
+		// last_longitude = longitude;
+		// last_latitude = latitude;
+		// last_height = height;
 	}
 	void localizer() //function to figure out our original location. not inline because it is called only once
 	{
@@ -245,7 +257,6 @@ public:
 		{	
 			localizer();
 			delay(5);
-			Serial.println("stuck?");
 		}
 		if(Hdop > 100)
 		{
@@ -287,6 +298,10 @@ public:
 		estimate_HDOP = Hdop; 
 		estimate_long = longitude;
 		estimate_lat = latitude;
+		if(Hdop>100000)
+		{
+			return 0; //break if gps unavailable.
+		}
 		//this process should take about 16 seconds tops after the gps fix has been received..
 		while(estimate_HDOP>0.0001) 
 		{
@@ -295,14 +310,14 @@ public:
 			{
 				timer = millis(); //reset timer 
 
-				gain = estimate_HDOP/(estimate_HDOP + Hdop);
+				gain = estimate_HDOP/(estimate_HDOP + 0.1*Hdop);
 
 				estimate_lat = gain*latitude + (1-gain)*estimate_lat ; //assuming the vehicle isn't moving
 				estimate_long = gain*longitude + (1-gain)*estimate_long ;
 				
 				estimate_HDOP *= (1-gain); //reduce error.
 			}
-			if( millis() - timeout > 14000 )//20 second time out.
+			if( millis() - timeout > 15000 )//15 second time out.
 			{
 				return 0;
 			}
@@ -310,6 +325,7 @@ public:
 
 		latitude = estimate_lat;
 		longitude = estimate_long;
+
 		return 1;
 	}
 };
