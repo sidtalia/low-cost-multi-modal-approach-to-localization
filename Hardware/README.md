@@ -1,4 +1,5 @@
 This folder contains all the hardware specifications, design files for building this project.
+TODO : update with new photos and some build instructions to accompany it.
 
 ![img_20181223_180048](https://user-images.githubusercontent.com/24889667/51115195-88d89100-182d-11e9-9f90-b0df4bda27b1.jpg)
 
