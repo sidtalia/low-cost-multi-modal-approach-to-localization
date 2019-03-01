@@ -52,6 +52,8 @@ class controller
 	controller()
 	{
 		stamp = millis(); //get time stamp
+		speed = 0;
+		speed_Error = 1e3;
 	}
 
 	float LPF(int i,float x)
@@ -65,7 +67,7 @@ class controller
 
 	float Curvature_To_Angle(float C)
 	{
-		if(mod(C)<1)
+		if(fabs(C)<1)
 		{
 			return RAD2DEG*WHEELBASE*C; //tan(x) = x for small values of x. bite me.
 		}
@@ -106,7 +108,7 @@ class controller
 		{
 			float dummy = (throttle - THROTTLE_OFFSET)/OPEN_GAIN;
 			speed = LPF(0,dummy);
-			speed_Error = 1e4*fabs(speed - dummy);//error is proportional to the target - estimated speed by Low pass filter model.
+			speed_Error = max(1e4*fabs(speed - dummy),0.1);//error is proportional to the target - estimated speed by Low pass filter model.
 		}
 	}
 
@@ -123,17 +125,17 @@ class controller
 		throttle = THROTTLENULL;
 		steer = STEERINGNULL; //default values.
 		
-		resultant = sqrt(Ax*Ax + Ay*Ay); //resultant horizontal acceleration
+		resultant = fast_sqrt(Ax*Ax + Ay*Ay); //resultant horizontal acceleration
 		correction = Curvature_To_Angle(C[0]); //convert radius of curvature to steering angle. this actually depends on wheelbase.
 		yaw_Compensation = RAD2DEG*V*C[0] - yawRate;//Expected Yaw rate - measured Yaw rate. This is basically the V_error fed to the closed loop steering control
 		
-		V_target = sqrt(MAX_ACCELERATION/mod(C[0])); //target maximum velocity
+		V_target = fast_sqrt(MAX_ACCELERATION/fabs(C[0])); //target maximum velocity
 
-		if(C[1] < C[0]) //if the turning gets sharper, we have to brake a little early. if the turning doesn't get any sharper then no premature braking needed
+		if(C[1] < C[0]) //if the turn gets sharper, we have to brake a little early. if the turning doesn't get any sharper then no premature braking needed
 		{
 			//braking distance is how much distance we have in front of us to slow down.
 			float V1, deceleration_required;
-			V1 = sqrt(MAX_ACCELERATION/mod(C[1]));//max speed at the sharpest portion of the turn
+			V1 = fast_sqrt(MAX_ACCELERATION/fabs(C[1]));//max speed at the sharpest portion of the turn TODO : OPTIMIZE
 			
 			deceleration_required = V*(V1-V)/braking_distance; //dv/dt = (dv/dx)*(dx/dt) :P. faster than v^2 = u^2 + 2.a.S. note that this value will be -ve
 			//TODO : make deceleration required as positive. 
@@ -145,7 +147,7 @@ class controller
 
 		if(MODE == MODE_PARTIAL)
 		{
-			backoff = 20*(resultant - MAX_ACCELERATION);
+			backoff = 0;//20*(resultant - MAX_ACCELERATION);
 			if(backoff<0)
 				backoff = 0;
 			if(Ay>0) //Ay lmao we speeding up homie.
@@ -214,7 +216,7 @@ class controller
 				backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
 				if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
 				{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
-					backoff = 0;			//off from the throttle or the breaks to keep the car within it's limit of grip
+					backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
 				}
 			}
 			else
