@@ -33,7 +33,7 @@ public:
 	bool Get_Offsets(int16_t A[3], int16_t G[3], int16_t M[3], int16_t &T,int16_t gain[3])
 	{
 		uint8_t i;
-		int16_t START_ID, message_ID, len,mode;
+		int16_t START_ID, message_ID, len;
 		
 		write_To_Port(START_SIGN,2);//start sign
 		write_To_Port(8,2); 		//length of payload
@@ -48,7 +48,7 @@ public:
 			{
 				len = Serial.read()|int16_t(Serial.read()<<8); //length of packet 40 bytes
 				message_ID = Serial.read()|int16_t(Serial.read()<<8);
-				mode = Serial.read()|int16_t(Serial.read()<<8);
+				Serial.read()|int16_t(Serial.read()<<8);//waste
 				if(message_ID==OFFSET_ID && len == 28)//confirm that you are getting the offsets and nothing else.
 				{
 					for(i=0;i<3;i++)//computer has offsets
@@ -130,31 +130,33 @@ public:
 	}//2 bytes
 
 	// void send_heartbeat(); 
-	void Send_State(byte mode,double lon, double lat, float vel, float heading, double pitch, double roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop)//position(2), speed(1), heading(1), acceleration(1), Position Error
+	void Send_State(byte mode,double lon, double lat,double gps_lon, double gps_lat, float vel, float heading, float pitch, float roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop)//position(2), speed(1), heading(1), acceleration(1), Position Error
 	{
 		if(millis() - transmit_stamp > 100)
 		{
 			transmit_stamp = millis();
-			long out[13];
+			long out[15];
 			out[0] = lon*1e7;
 			out[1] = lat*1e7;//hopefully this is correct
-			out[2] = vel*1e2;
-			out[3] = heading*1e2;
-			out[4] = pitch*1e7;
-			out[5] = roll*1e7;
-			out[6] = Accel*1e2;
-			out[7] = opError*1e3;
-			out[8] = pError*1e3;
-			out[9] = head_Error*1e3;
-			out[10] = VelError*1e3;
-			out[11] = Time;
-			out[12] = Hdop*1e3;
+			out[2] = gps_lon*1e7;
+			out[3] = gps_lat*1e7;
+			out[4] = vel*1e2;
+			out[5] = heading*1e2;
+			out[6] = pitch*1e2;
+			out[7] = roll*1e2;
+			out[8] = Accel*1e2;
+			out[9] = opError*1e3;
+			out[10] = pError*1e3;
+			out[11] = head_Error*1e3;
+			out[12] = VelError*1e3;
+			out[13] = Time;
+			out[14] = Hdop*1e3;
 
 			write_To_Port(START_SIGN,2);
 			write_To_Port(56,2);
 			write_To_Port(STATE_ID,2);
 			write_To_Port(int16_t(mode),2);
-			for(int i=0;i<13;i++)
+			for(int i=0;i<15;i++)
 			{
 				write_To_Port(out[i],4);
 			}
