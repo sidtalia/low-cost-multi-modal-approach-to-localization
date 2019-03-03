@@ -120,14 +120,14 @@ def readSerial():
 				if(num_bytes>8 and saved == False):
 					#car is sending new offsets
 					print("new offsets received")
-					offsets = message[4:]
+					offsets = message[4:17]
 					print(offsets)
 					np.save(file_name,offsets)
 					saved = True
 
 				else:
 					print('car is sending offsets for no real reason other than to show off.')
-					offsets = message[4:]
+					offsets = message[4:17]
 					print(offsets)
 
 			if ID == WP_ID:
@@ -147,27 +147,29 @@ def readSerial():
 				buf = np.frombuffer(message[4:],dtype = 'int32')
 				car.X =            1e-7*buf[0]
 				car.Y =            1e-7*buf[1]
-				car.speed =        1e-2*buf[2]
-				car.heading =      1e-2*buf[3]
-				# car.pitch = 	   1e-2*buf[4]
-				# car.roll = 		   1e-2*buf[5]
-				dummy_lon = 	   1e-7*buf[4]
-				dummy_lat = 	   1e-7*buf[5]
-				acceleration = 	   1e-2*buf[6]
-				opError = 		   1e-3*buf[7]
-				pError = 		   1e-3*buf[8]
-				head_error = 	   1e-3*buf[9]
-				Vel_Error = 	   1e-3*buf[10]
-				Exec_time = 	   buf[11]
-				Hdop =			   1e-3*buf[12]
+				dummy_lon = 	   1e-7*buf[2]
+				dummy_lat = 	   1e-7*buf[3]
+				car.speed =        1e-2*buf[4]
+				car.heading =      1e-2*buf[5]
+				car.pitch = 	   1e-2*buf[6]
+				car.roll = 		   1e-2*buf[7]
+				acceleration = 	   1e-2*buf[8]
+				opError = 		   1e-3*buf[9]
+				pError = 		   1e-3*buf[10]
+				head_error = 	   1e-3*buf[11]
+				Vel_Error = 	   1e-3*buf[12]
+				Exec_time = 	   buf[13]
+				Hdop =			   1e-3*buf[14]
 
 				gcs.MODE.configure(text = 'MODE = {}'.format(str(car.MODE) ) )
-				gcs.latitude.configure(text = 'latitude = {} degrees'.format(str(round(car.Y,7) ) ) )
-				gcs.longitude.configure(text = 'longitude = {} degrees'.format(str(round(car.X,7) ) ) )
+				gcs.latitude.configure(text = 'filtered latitude = {} degrees'.format(str(round(car.Y,7) ) ) )
+				gcs.longitude.configure(text = 'filtered longitude = {} degrees'.format(str(round(car.X,7) ) ) )
+				gcs.gps_latitude.configure(text = 'gps latitude = {} degrees'.format(str(round(dummy_lat,7) ) ) )
+				gcs.gps_longitude.configure(text = 'gps longitude = {} degrees'.format(str(round(dummy_lon,7) ) ) )				
 				gcs.speed.configure(text = 'speed = {} m/s'.format(str(round(car.speed,2) ) ) )
 				gcs.heading.configure(text = 'heading = {} degrees from east'.format(str(round(car.heading,2) ) ) )
-				gcs.pitch.configure(text = 'pitch = {} degrees'.format(str(round(dummy_lat,7) ) ) )
-				gcs.roll.configure(text = 'roll = {} degrees'.format(str( round(dummy_lon,7) ) ) )
+				gcs.roll.configure(text = 'roll = {} degrees'.format(str( round(car.roll,3) ) ) )
+				gcs.pitch.configure(text = 'pitch = {} degrees'.format(str(round(car.pitch,3) ) ) )
 				gcs.acceleration.configure(text = 'acceleration = {} m/s^2'.format(str( round(acceleration,2) ) ) )
 				gcs.opError.configure(text = 'op_Error = {} m'.format(str( round(opError,5) ) ) )
 				gcs.pError.configure(text = 'positionError = {} m'.format(str( round(pError,2) ) ) )
@@ -309,6 +311,10 @@ class GCS():
         self.latitude.pack()
         self.longitude = tk.Label(self.frame,text='')
         self.longitude.pack()
+        self.gps_latitude = tk.Label(self.frame,text='')
+        self.gps_latitude.pack()
+        self.gps_longitude = tk.Label(self.frame,text='')
+        self.gps_longitude.pack()
         self.speed = tk.Label(self.frame,text='')
         self.speed.pack()
         self.heading = tk.Label(self.frame,text='')
