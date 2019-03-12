@@ -8,6 +8,9 @@
 #define GPS_UPDATE_TIME (float)0.1
 #define MIN_GPS_SPEED (float) 5.0 //min speed till which gps is not used for velocity correction
 #define GPS_HDOP_LIM (float)2.5
+#define C1_STATE (float)0.9690674172
+#define LPF_GAIN_STATE (float)1/64.65674116
+
 class STATE
 {
 public :
@@ -18,6 +21,16 @@ public :
 	float AccBias;
 	bool position_reset;
 	float drift_Angle;
+	float xA[2][4],yA[2][4];
+
+    float LPF(int i,float x)
+	{
+	  xA[i][0] = xA[i][1]; 
+	  xA[i][1] = x*LPF_GAIN_STATE;
+	  yA[i][0] = yA[i][1]; 
+	  yA[i][1] =   (xA[i][0] + xA[i][1]) + ( C1_STATE* yA[i][0]); // first order LPF to predict new speed.
+	  return yA[i][1];
+	}
 
 	void initialize(double lon,double lat,double Hdop, float head, float Vel, float acc)
 	{
@@ -134,7 +147,7 @@ public :
 
 		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because the car's motion is constrained. While you could compute the 
 								//Velocity in the NED fashion, it would be equivalent to going on a fools errand here. If there is a constraint, exploit it.
-		if(OF_P_Error>1 || Velocity>3) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
+		if(Velocity>3) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
 		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
 			VelGain = 0;
 		}	
@@ -265,6 +278,7 @@ public :
 		//note that if the location was initially wrong, resetting the iLat resets the lon/lat estimates without disturbing the relative position estimates 
 		PosError_tot = distancecalcy(0,PosError_Y,0,PosError_Y,0);
 		drift_Angle = (OF_V_X/Velocity); //uncomment when you have a quick atan function
+		// LPF(0,Velocity); //use this if you have a really noisy accelerometer.
 		return ;
 		//----------LOCALIZATION ENDS-------------------------------------
 	}//on an STM32F103C8T6 running at 128MHz clock speed, this function takes 60.61 us to execute and 44 bytes of extra memory for local variables.
