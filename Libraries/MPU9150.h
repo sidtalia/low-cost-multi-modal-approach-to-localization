@@ -478,8 +478,8 @@ sanity check : marg.failure ? initialize() : do nothing
 
 #define GYRO_FILTER_FACTOR (float)1000*GYRO_SCALING_FACTOR
 #define GYRO_VARIANCE (float) GYRO_SCALING_FACTOR*0.0025 //default.
-#define ACCEL_VARIANCE (float) 0.1 //0.1m/s*s error.
-#define CIRCULAR_VELOCITY_ERROR (float) (ACCEL_VARIANCE + GYRO_VARIANCE)*100
+#define ACCEL_VARIANCE (float) 0.02 //0.02m/s*s error.
+#define CIRCULAR_VELOCITY_ERROR (float) (ACCEL_VARIANCE + GYRO_VARIANCE)*500
 
 #define MAG_UPDATE_TIME (float)0.01
 #define MAG_UPDATE_TIME_MS (int)1000*MAG_UPDATE_TIME
@@ -561,7 +561,7 @@ class MPU9150 {
         int16_t axis_gain[3];
         float invert_axis_gain[3];
         uint8_t error_code;
-        bool failure;
+        bool failure,mag_failure;
         float mag_mag;
         float encoder_velocity[2];
 
