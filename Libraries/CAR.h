@@ -108,7 +108,7 @@ class controller
 		{
 			float dummy = (throttle - THROTTLE_OFFSET)/OPEN_GAIN;
 			speed = LPF(0,dummy);
-			speed_Error = max(1e4*fabs(speed - dummy),0.1);//error is proportional to the target - estimated speed by Low pass filter model.
+			speed_Error = max(1e2*fabs(speed - dummy),0.1);//error is proportional to the target - estimated speed by Low pass filter model.
 		}
 	}
 
