@@ -414,6 +414,8 @@ float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, flo
   del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45.0f - roll) ) );
 
   mag_gain = spike(mag,49.0f); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
+  
+  fabs(mag-49)>20? mag_failure = true: mag_failure=false ;//check for high levels of interference.
 
   if(mh > M_PI_DEG && mh < M_2PI_DEG)
   {
