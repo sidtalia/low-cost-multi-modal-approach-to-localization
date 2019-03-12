@@ -8,7 +8,6 @@
 #include"SPI.h"
 #include"PARAMS.h"
 
-
 #define ADNS3080_PRODUCT_ID            0x00
 #define ADNS3080_MOTION                0x02
 #define ADNS3080_DELTA_X               0x03
@@ -40,8 +39,8 @@ usage :
 	obj.updateOpticalFlow(data);//get that data baby
 */
 
-#define LPF_GAIN_OPFLOW (float)1/2.0
-#define C1_OPFLOW (float)0.0
+#define LPF_GAIN_OPFLOW (float)1/64.65674116
+#define C1_OPFLOW (float)0.9690674172
 
 class OPFLOW
 {
@@ -58,8 +57,11 @@ public:
 	float LPF(int i,float x);
 	float CALIBERATION;
 	float X, Y, V_x, V_y, SQ, P_Error, V_Error;
+	float shutter_Speed,max_pix;
 	float omega[2];
 	float xA[4][2],yA[4][2];//for low pass filter
+	int8_t health;
+	bool failure;
 };
 
 #endif
