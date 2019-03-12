@@ -2,8 +2,8 @@
 #include"Arduino.h"
 #include<SPI.h>
 
-
-SPISettings spiSettings(2e6, MSBFIRST, SPI_MODE3);    // 2 MHz, mode 3
+//TOCHECK : replace camera lens, change clock speed, try a different sensor.
+SPISettings spiSettings(1e6, MSBFIRST, SPI_MODE3);    // 2 MHz, mode 3
 
 OPFLOW::OPFLOW()
 {
@@ -20,52 +20,37 @@ void OPFLOW::caliberation(float height, float angle)//distance measured by a ran
 void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 {
   // Read sensor
-	uint8_t buf[4];
-	spiRead(ADNS3080_MOTION_BURST, buf, 4);
+	uint8_t buf[6];
+	spiRead(ADNS3080_MOTION_BURST, buf, 7);
 	uint8_t motion = buf[0];
 	if (motion & 0x01) 
 	{  
 		int8_t dx = buf[1];   //caliberation for conversion to meters.   
 		int8_t dy = buf[2];
 		uint8_t surfaceQuality = buf[3];
+    int shutter = buf[4]<<8|buf[5];
+    uint8_t pix = buf[6];
     X = dx;
     X *= CALIBERATION;
     Y = dy;
     Y *= CALIBERATION;
     SQ = surfaceQuality;
+    shutter_Speed = float(shutter);
+    max_pix = float(pix);
     if(SQ<10)
     {
       SQ = 10; //sanity check
     }
 
-    if(SQ>100)
+    if(SQ>60)
     {
-      P_Error = CALIBERATION*(25/SQ);//the smallest distance it can measure divided by surface Quality.
-                                        //more surface quality = more reliable least count.
-      V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division
-    }
-
-    if(SQ>80 && SQ<=100)
-    {
-      P_Error = CALIBERATION*(256/SQ);//the smallest distance it can measure divided by surface Quality.
+      P_Error = CALIBERATION*(25600/SQ);//the smallest distance it can measure divided by surface Quality.
                                         //more surface quality = more reliable least count.
       V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division      
     }
-
-    if(SQ>40 && SQ<=80)
+    else if(SQ<=60)
     {
-      P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
-                                        //more surface quality = more reliable least count.
-      V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division
-    }
-    else if(SQ<=40 && SQ>10)
-    {
-      P_Error = 1e3*CALIBERATION*(2560/SQ); //some very large value that the optical flow sensor would never actually have.
-      V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
-    }
-    else
-    {
-      P_Error = 1e5; //some very large value that the optical flow sensor would never actually have.
+      P_Error = CALIBERATION*(2560000/SQ); //some very large value that the optical flow sensor would never actually have.
       V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
     }
 
@@ -85,9 +70,13 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
   }
 
   V_x = X*LOOP_FREQUENCY;
-  V_x = LPF(2,V_x);
+  // V_x = LPF(2,V_x);
   V_y = Y*LOOP_FREQUENCY;
-  V_y = LPF(3,V_y);
+//sensor health check.
+  health += fabs(V_y-LPF(3,V_y))>=1.0f? 1:-1; //increase health for every glitch that we get, decrease it for every nice reading
+  health = health<=0 ? 0 : health; //ensure the health isn't less than -1
+  failure = health>50? true:false;
+  // V_y = LPF(3,V_y);
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
