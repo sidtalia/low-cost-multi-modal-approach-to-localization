@@ -6,7 +6,7 @@
 
 #define GPS_UPDATE_RATE (float)10 //gps update rate in Hz
 #define GPS_UPDATE_TIME (float)0.1
-#define MIN_GPS_SPEED (float) 5.0 //min speed till which gps is not used for velocity correction
+#define MIN_GPS_SPEED (float) 3.0 //min speed till which gps is not used for velocity correction
 #define GPS_HDOP_LIM (float)2.5
 #define C1_STATE (float)0.9690674172
 #define LPF_GAIN_STATE (float)1/64.65674116
@@ -149,13 +149,13 @@ public :
 								//Velocity in the NED fashion, it would be equivalent to going on a fools errand here. If there is a constraint, exploit it.
 		if(Velocity>3) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
 		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
-			VelGain = 0;
+			VelGain *= 0.001;
 		}	
 		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-		// AccBias += (Vacc - Velocity)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+		AccBias += (Vacc - Velocity)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
 		
 		//this is the covariance stuff(using the corrected estimates to correct errors in states other than the one being corrected)
 		//distance moved in last cycle
@@ -166,14 +166,15 @@ public :
 		dSError = VelError*dt;//error in instantaneous distance travelled
 		dTheta = mh_Error*DEG2RAD;//error in heading
 
-		PosError_Y += dSError*fabs(cosmh) - dS*fabs(sinmh)*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
-		PosError_X += dSError*fabs(sinmh) + dS*fabs(cosmh)*dTheta;//the jacobian is simply a matrix that contains the partial derivatives. See how much simpler it is to
-														//understand when you DON'T use matrices(looking at you Ardupilot, px4, etc)??
+		PosError_Y += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
+		PosError_Y = fabs(PosError_Y);//ensure that it stays positive
+		PosError_X += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives.
+		PosError_X = fabs(PosError_X);//ensure it stays positive.
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
 		X += cosmh*OF_Y + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
-		Y += sinmh*OF_Y + cosmh*OF_X; //
+		Y += sinmh*OF_Y - cosmh*OF_X; //
 
 		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
 		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
@@ -225,7 +226,7 @@ public :
 
 			lastLon = lon;//setting lastLat, lastLon for next iteration
 			lastLat = lat; 
-			// Hdop *= 0.1;
+
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
 			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
 			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
@@ -278,7 +279,7 @@ public :
 		//note that if the location was initially wrong, resetting the iLat resets the lon/lat estimates without disturbing the relative position estimates 
 		PosError_tot = distancecalcy(0,PosError_Y,0,PosError_Y,0);
 		drift_Angle = (OF_V_X/Velocity); //uncomment when you have a quick atan function
-		// LPF(0,Velocity); //use this if you have a really noisy accelerometer.
+		// LPF(0,Velocity); //use this if you have a really noisy accelerometer but avoid at all costs.
 		return ;
 		//----------LOCALIZATION ENDS-------------------------------------
 	}//on an STM32F103C8T6 running at 128MHz clock speed, this function takes 60.61 us to execute and 44 bytes of extra memory for local variables.
