@@ -104,7 +104,7 @@ void setup()
   long timeout = millis();
   do //wait till we get a GPS fix
   {
-    gcs.Send_State(MODE, gps.latitude, gps.longitude, marg.V, marg.mh+marg.yawRate*dt*0.5, marg.pitch, marg.roll, marg.Ha, opticalFlow.P_Error, 0, marg.mh_Error, marg.V_Error, 0,gps.Hdop);
+    gcs.Send_State(MODE, gps.latitude, gps.longitude,gps.latitude,gps.longitude, marg.V, marg.mh, marg.pitch, marg.roll, marg.Ha, opticalFlow.P_Error, 0, marg.mh_Error, marg.V_Error, 0,gps.Hdop);
     if(gps.Hdop>100000)//if gps is unavailable, skip.
     {
       delay(100);
@@ -119,34 +119,42 @@ void setup()
   else
   {
     GPS_FIX = 0;
+    delay(100);
+    gps.localizer(); //use latest position from gps as a starting point.
   }
 
   car.initialize(gps.longitude, gps.latitude, gps.Hdop, marg.mh, 0, marg.Ha);
   
 }
 
-long timer;
-long T;
+unsigned long timer,time_it;
+unsigned long T,benchmark;
 
 void loop() 
 {
   timer = micros();//this is to ensure that the cycle time remains constant at 2500us. How do I know it's not exceeding that limit? 
                     //I unit test each of the functions to check how much time they take to execute.
   //get sensor data
-  marg.compute_All(); //get AHRS (and other things as well) from IMU. 500us, has failsafe in case sensor is reset somehow
+  
+  control.get_model(marg.encoder_velocity); //comment out if not using output throttle signal as a rough speed estimate
+  marg.compute_All(); //get AHRS (and Velocity as well) from IMU. 980us, has failsafe in case sensor is reset somehow
+  control.feedback(marg.encoder_feedback);//giving feedback to the car's model.
+  
   marg.get_Rotations(opticalFlow.omega); //transfer rates of rotation
   opticalFlow.updateOpticalFlow(); //update optical flow 150us
   gps.localizer(); //update gps. 12us
-  
+  //till here it takes 180us, total at 1170us
   car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, marg.mh, marg.mh_Error, marg.Ha, marg.V, marg.V_Error,
              opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
-  marg.Velcity_Update(car.Velocity);
-  marg.V_Error = car.VelError;
-  marg.bias = car.AccBias ; //transfer the bias. this is pretty much the reason why the update function does not take arguments by reference. its because the values need to be copied to 2 mpu objects anyway. 
-//
+  marg.Velocity_Update(car.Velocity,car.VelError,car.AccBias);//pass the corrected velocity back to marg where it gets low pass filtered too.
+//transfer the bias. this is pretty much the reason why the update function does not take arguments by reference
+  //till here it takes 120us, total at 1330us
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
-  gcs.Send_State(MODE, car.longitude, car.latitude, car.Velocity, marg.mh, gps.longitude, gps.latitude, marg.Ha, opticalFlow.P_Error, car.PosError_tot, marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
+//  time_it = micros();
+  gcs.Send_State(MODE, car.longitude, car.latitude,gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+                  opticalFlow.V_y, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
+//  benchmark = max(micros()-time_it,benchmark);
   if(gcs.get_Mode()!=255)
   {
     MODE = gcs.get_Mode();
@@ -172,7 +180,7 @@ void loop()
       MODE = MODE_STANDBY;
     }
   }
-
+  
   if(message == CALIB_ID)//recalculate offsets
   {
     int16_t A[3],G[3],M[3],gain[3],T;
@@ -263,11 +271,11 @@ void loop()
     float dum[] = {0.0,0.0};//dummy
     control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
-  if(T > dt_micros)
+  if(T > dt_micros)//in case the execution time exceeds loop time limit
   {
     gcs.Send_Calib_Command(5);
   }
-  control.get_speed(marg.encoder_velocity); //comment out if not using output throttle signal as a rough speed estimate
+  
   T = max(micros()-timer,T);
   while(micros()-timer < dt_micros ); //dt_micros is defined in PARAMS.h
 }
