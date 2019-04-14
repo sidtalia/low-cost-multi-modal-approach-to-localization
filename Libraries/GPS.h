@@ -13,8 +13,8 @@
  * the bot would need, therefore reducing the time required to transfer the data to ~5ms down from approximately 20ms 
  * when using the standard protocols (forgot their names, I guess they were called GNSS,GLONAS etc, I could be wrong
  * so don't quote me anywhere).
- * ALSO, full disclosure, I did not write this code, I picked it up from the internet from the guy that made the video of 
- * "10Hz update rate on ublox gps". I did makes some changes but they are just for my convenience. All credit for this stuff goes to him.
+ * ALSO, I did not write all of this code, I picked it up from the internet from the guy that made the video of 
+ * "10Hz update rate on ublox gps".
  */
 
 
