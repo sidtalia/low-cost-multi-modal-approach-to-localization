@@ -476,13 +476,13 @@ sanity check : marg.failure ? initialize() : do nothing
 #define ACCEL_SCALING_FACTOR (float) 0.0024412
 #define GYRO_SCALING_FACTOR  (float) 0.061035
 
-#define GYRO_FILTER_FACTOR (float)1000*GYRO_SCALING_FACTOR
-#define GYRO_VARIANCE (float) GYRO_SCALING_FACTOR*0.0025 //default.
-#define ACCEL_VARIANCE (float) 0.02 //0.02m/s*s error.
-#define CIRCULAR_VELOCITY_ERROR (float) (ACCEL_VARIANCE + GYRO_VARIANCE)*500
+#define GYRO_FILTER_FACTOR (float) (1000*GYRO_SCALING_FACTOR)
+#define GYRO_VARIANCE (float) (GYRO_SCALING_FACTOR*dt) //default.
+#define ACCEL_VARIANCE (float) 0.02 //0.01m/s*s error.
+#define CIRCULAR_VELOCITY_ERROR (float) (ACCEL_VARIANCE/(GYRO_SCALING_FACTOR*DEG2RAD))
 
 #define MAG_UPDATE_TIME (float)0.01
-#define MAG_UPDATE_TIME_MS (int)1000*MAG_UPDATE_TIME
+#define MAG_UPDATE_TIME_MS (int) (1000*MAG_UPDATE_TIME)
 
 
 #define TEMP_COMP (float)-0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
@@ -526,7 +526,7 @@ class MPU9150 {
         void Setup(); //initialize the state of the marg.
         float temp_Compensation(int16_t temp);
         void Velocity_Update(float &velocity,float VelError, float Accbias);
-        void get_Rotations(float omega[2]);
+        void get_Rotations(float omega[3]);
         float get_Anet()
         {
             return fast_sqrt(A[0]*A[0] + A[1]*A[1] + A[2]*A[2]);
@@ -563,7 +563,8 @@ class MPU9150 {
         uint8_t error_code;
         bool failure,mag_failure;
         float mag_mag;
-        float encoder_velocity[2];
+        float encoder_velocity[3],encoder_feedback;
+        float radius;
 
         
     private:
