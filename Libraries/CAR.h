@@ -8,10 +8,10 @@
 
 
 #define WHEELBASE (float)0.254 //wheelbase in meters
-#define STEERING_MAX 30 //30 degrees max steering 
+#define STEERING_MAX 30 //25 degrees max steering 
 #define STEERING_PULSE_LOCK2CENTER 372 //pulse difference between center steering and steering at full lock. they might be different for your car.
 #define ABSOLUTE_MAX_ACCELERATION 10 //10m/s*s. This is the absolute maximum acceleration the car can handle
-#define MAX_ACCELERATION (float)0.7*ABSOLUTE_MAX_ACCELERATION
+#define MAX_ACCELERATION (float) (0.7*ABSOLUTE_MAX_ACCELERATION)
 //maximum safe acceleration (omnidirectional) that the car can handle without any problems whatsoever 
 //for example braking and turning at the same time. keep this as ~70% of maximum friction force that the tires can provide
 #define SAFE_DECELERATION -0.4*MAX_ACCELERATION //the threshold deceleration for us to start braking. This is ~1/2 of the MAX_ACCELERATION 
@@ -23,37 +23,55 @@
 #define THROTTLENULL 1500
 #define VMAX (float)17.0 //maximum speed that my car can hit.
 #define SAFE_SPEED (float)2.5 //safe cruise speed defined as 2.5 m/s. Basically this is how fast I can run after the car if something went wrong.
-#define OPEN_GAIN (float)20.0 //open loop throttle gain. I am assuming a linear relationship between throttle input and speed
+#define OPEN_GAIN (float)25.0 //open loop throttle gain. I am assuming a linear relationship between throttle input and speed
 #define CLOSED_GAIN (float)10 //closed loop gain. This helps me deal with the fact that the relation between throttle and speed is not exactly linear
-#define BRAKE_GAIN (float)250/MAX_ACCELERATION //brake gain. Explained later.
-#define STEERING_OPEN_GAIN (float)STEERING_PULSE_LOCK2CENTER/STEERING_MAX //open loop gain between steering angle and pwm value. The relationship is assumed to be linear but is not and 
+#define BRAKE_GAIN (float) (250/MAX_ACCELERATION) //brake gain. Explained later.
+#define STEERING_OPEN_GAIN (float)(STEERING_PULSE_LOCK2CENTER/STEERING_MAX) //open loop gain between steering angle and pwm value. The relationship is assumed to be linear but is not and 
 #define STEERING_CLOSED_GAIN (float)0.7 //hence I use a closed loop gain as well to control the steering. This gain is based on "how fast can your steering turn lock to lock?"
 			//I will make it a little more generic so that ya'll can just put in your servo specs
 			// (slightly inaccurate open + closed) loop control > mathematical model of the system. Why? because life is full of uncertainties.
 
-#define CRITICAL_YAW 180 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
-#define VARIABLE_GAIN (float)1/CRITICAL_YAW
-#define LPF_GAIN_THROTTLE (float)1/64.65674116
-#define C1_THROTTLE (float)0.9690674172
-#define OPEN_GAIN_INVERSE (float)1/OPEN_GAIN
+#define CRITICAL_YAW (float) 90 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
+#define VARIABLE_GAIN (float) (1/CRITICAL_YAW)
+#define LPF_GAIN_THROTTLE (float) 1.0f/128.321336 //this is for 200Hz sample rate.
+#define C1_THROTTLE (float) 0.984414
+#define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN)
+
+#define LEARNING_RATE dt
 
 float yaw_correction(float input)
 {
 	return STEERING_CLOSED_GAIN*(1+VARIABLE_GAIN*fabs(input))*input;
 }
 
+float check(float input,float threshold)
+{
+	if(input < threshold && input>=0)
+	{
+		input = threshold;
+	}
+	if(input > -threshold && input<0)
+	{
+		input = -threshold;
+	}
+	return input;
+}
+
 class controller
 {
 	long stamp;
 	int throttle,steer;
-	float speed,speed_Error;
+	float speed,speed_Error,roc,La,yR,last_Speed,last_Throttle,Ha,feedback_factor;
 	float xA[2][2],yA[2][2];//for low pass filter
 	public:
 	controller()
 	{
 		stamp = millis(); //get time stamp
 		speed = 0;
-		speed_Error = 1e3;
+		speed_Error = 0;
+		last_Throttle = THROTTLENULL;
+		last_Speed = 0;
+		feedback_factor = 1;
 	}
 
 	float LPF(int i,float x)
@@ -91,31 +109,70 @@ class controller
 		return int(input);
 	}
 
-	void get_speed(float array[2])
+	void get_model(float array[3])
 	{
 		array[0] = speed;
 		array[1] = speed_Error;
+		array[2] = roc;
+	}
+
+	void feedback(float fb)
+	{
+		feedback_factor += fb*LEARNING_RATE; 
+		if(feedback_factor<0.1)
+		{
+			feedback_factor = 0.1;//prevent negative or 0 value.
+		}
 	}
 
 	void calc_speed()
 	{
-		if(throttle<1530)
+		roc = DEG2RAD*(steer - STEERINGNULL)/STEERING_OPEN_GAIN;
+		roc = check(roc,1e-3);//the steering angle must not be less than 1e-3 radians or 0.0573 degrees effectively a radius of more than 225 meters will not be accepted. This prevents the possibility of running into NaNs 
+		roc = WHEELBASE/tan(roc);//this is how you reuse variables kids. roc does not have to be very accurate but it does have to be stable.
+		// if(throttle - last_Throttle > THROTTLE_DELTA)
+		// {
+		// 	throttle = last_Throttle + THROTTLE_DELTA;
+		// }
+		// last_Throttle = throttle;
+		
+		if(fabs(yR) > 0.17)
+		{
+			roc = 0.95*roc - 0.05*(La/(yR*yR));
+		}
+		if(throttle<THROTTLE_OFFSET)
 		{
 			speed = 0;
-			speed_Error = 1e5;
+			speed_Error = 1e2;
 		}	
 		else
 		{
-			float dummy = (throttle - THROTTLE_OFFSET)/OPEN_GAIN;
-			speed = LPF(0,dummy);
-			speed_Error = max(1e2*fabs(speed - dummy),0.1);//error is proportional to the target - estimated speed by Low pass filter model.
+			if(throttle>THROTTLE_MAX) //this also limits the throttle sent to the esc.
+			{
+				throttle = THROTTLE_MAX;
+			}
+			float dummy = (throttle - THROTTLE_OFFSET)*THROTTLE_RANGE_INV;
+			speed = A0*pow(dummy,3) + A1*pow(dummy,2) + A2*dummy + A3;
+			float load = fabs(La*COG/roc);
+			speed /= (feedback_factor + load/ROLL_RES);
+			speed = LPF(0,speed);
+			
+			if((speed-last_Speed)*CONTROL_FREQUENCY>Ha)
+			{
+				speed = last_Speed + Ha*CONTROL_TIME_SEC;
+			}
+			last_Speed = speed;
+
+			speed_Error = max(speed,1.0f);// max(1e2*fabs(speed - dummy),1.0f);//error is proportional to the target - estimated speed by Low pass filter model.
 		}
 	}
 
 	//the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
 	void driver(float C[2], float braking_distance, float V, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
 	{
-
+		La = Ax;//transfer information
+		yR = yawRate*DEG2RAD;
+		Ha = LPF(1,Ay);
 		if( millis() - stamp < CONTROL_TIME)
 		{
 			return; //maintain a defined control frequency separate from observation frequency. Only used here because synchronising the time stamps across 2 objects would be difficult(sort of. could fix. create a pull request if you want it fixed)
