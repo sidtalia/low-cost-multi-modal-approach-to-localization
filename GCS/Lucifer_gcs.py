@@ -50,6 +50,10 @@ if(connection == False):
 
 file_name = 'LUCIFER_offsets_1.npy'
 log_file = 'LUCIFER_log_0.npy'
+saved = False
+
+if os.path.isfile(file_name):
+	saved = True
 
 class CAR():
 	def _init_(self):
@@ -72,7 +76,7 @@ class CAR():
 car = CAR()
 car._init_()
 
-saved = False
+
 latlon = np.array([0])
 
 
@@ -184,29 +188,30 @@ def readSerial():
 				dum_lon = np.array(car.gps_lon)
 
 				if(rec):
-					car.lon.append(car.X)
-					car.lat.append(car.Y)
-					car.gps_lon.append(dummy_lon)
-					car.gps_lat.append(dummy_lat)
-					# data = np.array([car.X,car.Y,car.speed,car.heading,dummy_lon,dummy_lat,acceleration,opError,pError,heading_Error,Vel_Error,Exec_time,Hdop])
-					# car.lon.append(data)
+					# car.lon.append(car.X)
+					# car.lat.append(car.Y)
+					# car.gps_lon.append(dummy_lon)
+					# car.gps_lat.append(dummy_lat)
+					# data = np.array([car.X,car.Y,car.speed,car.heading,dummy_lon,dummy_lat,acceleration,opError,pError,head_Error,Vel_Error,Exec_time,Hdop])
+					data = np.array([car.X,car.Y,dummy_lon,dummy_lat,car.speed,car.heading,car.pitch,car.roll,acceleration,Vel_Error,opError,pError,Hdop,Exec_time])
+					car.lon.append(data)
 					plt.scatter(car.X,car.Y)
 					plt.show()
 				else:
 					if(len(car.lon)):
 						a = time.localtime(time.time())
-						log_file = 'LUCIFER_log_filt_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
-						points =  np.concatenate((lat,lon),axis=0)
-						np.save( log_file, points)
-						log_file = 'LUCIFER_log_gps_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
-						points =  np.concatenate((dum_lat,dum_lon),axis=0)
-						np.save( log_file, points)
+						# log_file = 'LUCIFER_log_filt_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
+						# points =  np.concatenate((lat,lon),axis=0)
+						# np.save( log_file, points)
+						# log_file = 'LUCIFER_log_gps_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
+						# points =  np.concatenate((dum_lat,dum_lon),axis=0)
+						# np.save( log_file, points)
+						log_file = 'LUCIFER_log_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
+						np.save( log_file, car.lon)
 						car.lon = []#reset
 						car.lat = []
 						car.gps_lat = []
 						car.gps_lon = []
-						# log_file = 'LUCIFER_log_{}_{}_{}_{}_{}.npy'.format(a.tm_year,a.tm_mon,a.tm_mday,a.tm_hour,a.tm_min)
-						# np.save( log_file, car.lon)
 						plt.clf() # clear the points
 
 				send_heartbeat(car)
@@ -370,3 +375,7 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
+
+
+
+
