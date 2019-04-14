@@ -445,7 +445,6 @@ void MPU9150::compute_All()
   float innovation[3];
   float V_mes;
   bool mag_Read = false;
-  float temp = 0;
   float cosRoll,_sinRoll,cosPitch,_sinPitch;
   float gain;
 
@@ -465,7 +464,7 @@ void MPU9150::compute_All()
 
   readAll(mag_Read);//read the mag if the condition is true.
   //PREDICTION STEP (ROLL AND PITCH FIRST)
-  d_Yaw_Radians = (G[2]*dt*DEG2RAD); //change in yaw around the car's Z axis (this is not the change in heading)
+  d_Yaw_Radians = (G[2]*dt*DEG2RAD); //change in yaw around the car's Z axis (this is not exactly the change in heading)
   roll  += (G[1] - gyro_Bias[1])*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
   cosRoll = cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
   _sinRoll = -sin(roll*DEG2RAD);
@@ -476,34 +475,35 @@ void MPU9150::compute_All()
   _sinPitch = -sin(pitch*DEG2RAD);
 
   //if the car is going around a banked turn, then the change in heading is not the same as yawRate*dt. P.S: cos is an even function.
-  temp = (G[2]*cosRoll +G[0]*_sinRoll - gyro_Bias[2]); //compensates for pitch and roll of gyro(roll pitch compensation to the yaw).
-  mh += dt*temp;  
-  temp = LPF(2,temp); //low pass filter on rate of rotation in horizontal plane. this is used for correcting magnetometer's laggy measurements.
+  mh += dt*(G[2]*cosRoll +G[0]*_sinRoll - gyro_Bias[2]); //compensates for pitch and roll of gyro(roll pitch compensation to the yaw).
   //INCREMENT ERROR
   pitch_Error += GYRO_VARIANCE; //increment the errors each cycle
   roll_Error += GYRO_VARIANCE;
   mh_Error += GYRO_VARIANCE;
 
   //CORRECTION STEP AND REDUCING THE ERROR AFTER CORRECTION IN ROLL AND PITCH
-  Anet = (A[0]*A[0] + A[1]*A[1] + A[2]*A[2]); //square of net acceleration.
+  Anet = (A[0]*A[0] + A[1]*A[1] + A[2]*A[2]); //square of net acceleration. TODO : FIX THIS BITCH
   trust = exp_spike(0,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
-  trust_1 = 1-trust;//the lesser the trust in accelerometer measurements (kind of like scaling up/down the R matrix)
   
   if( fabs(A[1])<GRAVITY-1.0f ) //sanity check on accelerations so that we don't get Naans
   {
     innovation[0] = pitch; //dummy;
-    pitch = trust_1*pitch + trust*RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
+    float pitch_trust = trust*pitch_Error;
+    trust_1 = (1 - pitch_trust);
+    pitch = trust_1*pitch + pitch_trust*RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
     pitch_Error *= trust_1; //reduce the error everytime you make a correction
     innovation[0] -= pitch; //actual innovation
-    gyro_Bias[0] += trust*innovation[0]*dt; //get bias
+    gyro_Bias[0] += pitch_trust*innovation[0]*dt; //get bias
   }
   if( fabs(A[0])<GRAVITY-1.0f )
   {
     innovation[1] = roll;
-    roll  = trust_1*roll  - trust*RAD2DEG*asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
+    float roll_trust = trust*roll_Error;
+    trust_1 = (1 - roll_trust);
+    roll  = trust_1*roll  - roll_trust*RAD2DEG*asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
     roll_Error *= trust_1;
     innovation[1] -= roll;
-    gyro_Bias[1] += trust*innovation[1]*dt;
+    gyro_Bias[1] += roll_trust*innovation[1]*dt;
   }
   yawRate = G[2] - gyro_Bias[2]; // yaw_Rate.
 
@@ -515,11 +515,11 @@ void MPU9150::compute_All()
   if(fabs(pitch)>1.0f&&fabs(pitch)<4.0f)
   {
     pitch = LPF(1,pitch); //applying a 100 Hz LPF to these signals. 
-  }
+  }//TODO : do we need this low pass filter?
   Sanity_Check(M_PIB2_DEG,roll); //sanity checks.
   Sanity_Check(M_PIB2_DEG,pitch);
 
-  if(mh >= M_2PI_DEG) // the mh must be within [0.0,M_2PI_DEG.0]
+  if(mh >= M_2PI_DEG) // the mh must be within [0.0,360.0]
   {
     mh -= M_2PI_DEG;
   }
@@ -530,7 +530,7 @@ void MPU9150::compute_All()
   // CORRECTION OF HEADING AND REDUCING ERROR AFTER CORRECTION.
   if( mag_Read )//check if mag has been read or not.
   { 
-    float mag_head = tilt_Compensate(cosPitch,cosRoll,-_sinPitch,-_sinRoll);
+    float mag_head = tilt_Compensate(cosPitch,cosRoll,-_sinPitch,-_sinRoll); //get tilt compensated heading
     if(fabs(mag_head - mh)>M_PI_DEG) // this happens when the heading is in the range of 5-0-355 degrees
     {
       mh = M_2PI_DEG-mh;// doing this because mag is the measured value. can't change that you know.
@@ -542,40 +542,49 @@ void MPU9150::compute_All()
     mh = (1.0f-mag_gain)*mh + mag_gain*(mag_head);
     innovation[2] -= mh; //actual innovation
     mh_Error *= (1.0f-mag_gain); //reduce the error.
-    gyro_Bias[2] += mag_gain*innovation[2]*dt;
+    gyro_Bias[2] += mag_gain*innovation[2]*dt;//adjust bias
   }
   //Estimating speed.
-  Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// world frame 
+  Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// world frame NOTE : due to the LPF, this can report incorrect values when you shake the car. 
   Sanity_Check(12.0f,Ha);
   La = A[0] - GRAVITY*_sinRoll; //lateral acceleration in global reference. 
+  La = LPF(2,La);
   if(fabs(yawRate)>10.0f) //this check is to ensure a decent signal to noise ratio.
   {
-    float radius = V/(yawRate*DEG2RAD);//estimating speed using (V^2/R) / (V/R) = A/yaw_rate
-    float theta = atan(DIST_BW_ACCEL_AXLE/radius);
-    Ha -= La*sin(theta); //compensation for not having the accelerometer at the center of the rear axle.
-
-    V_mes = -La/(DEG2RAD*yawRate);
-    V += Ha*dt;
+    float yawRadians = yawRate*DEG2RAD;//rate of rotation in radians
+    float yawRadians2 = yawRadians*yawRadians; //square it 
+    // radius = -La/yawRadians2;//estimating radius of curvature using R = Ax/omega^2
+    // radius = 0.05f*radius + 0.95f*encoder_velocity[2]; //this is to make sure we don't have too much noise. encoder_velocity[2] is estimated roc from steering signal 
+    radius = encoder_velocity[2];
+    Ha -= (La*DIST_BW_ACCEL_AXLE/radius); //This is the correction for not having the accelerometer at the rear axle
+    //TODO : insert method to trust A/w less when dw/dt is large (Steering angle changing because that's why we get errors in speed bruh)
+    // La += d_Yaw_Radians*(d_Yaw_Radians + 2*yawRadians)*radius; //correction for centrifugal force.
+    V_mes = -La/yawRadians; //measure velocity as V = A/w, since A = wr.w and wr is the speed.
+    V += Ha*dt; //propogate the state of the car through time.
     V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error. God I wish this was fixed too!
     gain = V_Error/(CIRCULAR_VELOCITY_ERROR + V_Error); //CIRCULAR VELOCITY ERROR is fixed and is defined in the header.
-    V = (1.0f-gain)*V + gain*V_mes;//
-    V_Error *= (1.0f-gain);
+    V = (1.0f-gain)*V + gain*V_mes;//correction step
+    V_Error *= (1.0f-gain);//adjusting the error in the velocity.
   }
   else//if the car ain't turnin 
   {
-    V += Ha*dt;
-    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);
+    // Ha -= (La*DIST_BW_ACCEL_AXLE*1e-3);
+    V += Ha*dt;//propogate the state through time.
+    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error
   }
+  V_mes = V; //dummy variable. Assuming the V so far to be accurate.
   gain = V_Error/(encoder_velocity[1] + V_Error); //encoder_velocity[0] is error, [1] is actual speed
-  V = (1.0f-gain)*V + gain*encoder_velocity[0]; //not reducing error because to be honest there is no error reduction happening here okay folks
-  V_Error *= (1-gain);
+  V = (1.0f-gain)*V + gain*encoder_velocity[0]; //correction step
+  V_Error *= (1-gain); 
+  encoder_feedback = V_mes>=0? (encoder_velocity[0] - V_mes)*(1-gain) : 0 ; //feedback to the model
   return;
 }//570us worst case. 
 
-void MPU9150::get_Rotations(float omega[2])
+void MPU9150::get_Rotations(float omega[3])
 {
   omega[0] = DEG2RAD*G[0];
   omega[1] = DEG2RAD*G[1]; //pass the rotations in radians.
+  omega[2] = V; //pass the velocity too (why tho?)
 }
 
 void MPU9150::Setup()//initialize the state of the marg.
