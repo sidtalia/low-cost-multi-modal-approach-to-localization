@@ -41,23 +41,25 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     {
       SQ = 10; //sanity check
     }
+    P_Error = exp(9.0f - SQ*0.11); //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
+    V_Error = LOOP_FREQUENCY*P_Error;
 
-    if(SQ>60)
-    {
-      P_Error = CALIBERATION*(25600/SQ);//the smallest distance it can measure divided by surface Quality.
-                                        //more surface quality = more reliable least count.
-      V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division      
-    }
-    else if(SQ<=60)
-    {
-      P_Error = CALIBERATION*(2560000/SQ); //some very large value that the optical flow sensor would never actually have.
-      V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
-    }
+    // if(SQ>60)
+    // {
+    //   P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
+    //                                     //more surface quality = more reliable least count.
+    //   V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division      
+    // }
+    // else if(SQ<=60)
+    // {
+    //   P_Error = CALIBERATION*(256000/SQ); //some very large value that the optical flow sensor would never actually have.
+    //   V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
+    // }
 
-    X += omega[1]*ride_height*dt; //the sign was flipped on 11/2/19 3:28pm
-    // X = LPF(0,X);
-    Y -= omega[0]*ride_height*dt; //compensation for rotations ya know. this sign was also flipped. please run a test.
-    // Y = LPF(1,Y);
+    X += omega[1]*ride_height*dt*0.1; //the sign was flipped on 11/2/19 3:28pm
+    X = LPF(0,X);
+    Y -= omega[0]*ride_height*dt*0.1; //compensation for rotations ya know. this sign was also flipped. please run a test.
+    Y = LPF(1,Y);
   } 
 	else if(motion & 0x10)  //buffer overflow
 	{
@@ -70,13 +72,14 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
   }
 
   V_x = X*LOOP_FREQUENCY;
-  // V_x = LPF(2,V_x);
+  V_x = LPF(2,V_x);
   V_y = Y*LOOP_FREQUENCY;
+  V_y = LPF(3,V_y);  
 //sensor health check.
-  health += fabs(V_y-LPF(3,V_y))>=1.0f? 1:-1; //increase health for every glitch that we get, decrease it for every nice reading
+  // TODO : insert (in the main code) a method to get the sensor health for all sensors (please?)
+  health += fabs(V_y-omega[2])>=1.0f? 1:-1; //increase health for every glitch that we get, decrease it for every nice reading
   health = health<=0 ? 0 : health; //ensure the health isn't less than -1
   failure = health>50? true:false;
-  // V_y = LPF(3,V_y);
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
@@ -87,6 +90,7 @@ void OPFLOW::reset_ADNS(void)              //reset. used almost never after the 
   delayMicroseconds(500); // Wait for sensor to get ready
 }
 
+
 float OPFLOW::LPF(int i,float x)
 {
   xA[i][0] = xA[i][1]; 
@@ -94,6 +98,21 @@ float OPFLOW::LPF(int i,float x)
   yA[i][0] = yA[i][1]; 
   yA[i][1] =   (xA[i][0] + xA[i][1]) + ( C1_OPFLOW* yA[i][0]); // first order LPF to predict new speed.
   return yA[i][1];
+}
+
+void OPFLOW::set_6469(void)
+{
+  // set frame rate to manual
+  uint8_t regVal = spiRead(ADNS3080_EXTENDED_CONFIG);
+  regVal = (regVal & ~0x01) | 0x01;
+  delayMicroseconds(75);  // small delay
+  spiWrite(0x0B, regVal);
+  delayMicroseconds(75);  // small delay
+  // set frame period for 6469 fps
+  spiWrite(0x19,0x7E);
+  delayMicroseconds(75);  // small delay
+  spiWrite(0x1A,0x0E);
+
 }
 
 bool OPFLOW::initialize(void)
@@ -110,6 +129,7 @@ bool OPFLOW::initialize(void)
   }
   uint8_t configuration = spiRead(ADNS3080_CONFIGURATION_BITS);
   spiWrite(ADNS3080_CONFIGURATION_BITS, configuration | 0x10); // Setting resolution.
+
   return connection;
 }
 
