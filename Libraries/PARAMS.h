@@ -1,14 +1,27 @@
 #ifndef _PARAMS_H_
 #define _PARAMS_H_
 
-#define dt (float)0.0025
-#define LOOP_FREQUENCY (float)400
-#define dt_micros (int)2500
+#define dt (float) 0.0025
+#define LOOP_FREQUENCY (float) 400
+#define dt_micros (int) 2500
 
-#define ride_height (float)0.05 //6.2cms height of the sensor.
-#define DIST_BW_ACCEL_AXLE (float)0.225// distance between rear axle and accelerometer
+#define ride_height (float) 0.06 //6.2cms height of the sensor.
+#define DIST_BW_ACCEL_AXLE (float) 0.225// distance between rear axle and accelerometer
+#define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
+#define DAMPING (float) 0.4f
+
 #define THROTTLE_OFFSET 1535
-#define DECLINATION (float)-5.5
+#define THROTTLE_MAX 1810
+#define THROTTLE_DELTA 10
+#define THROTTLE_RANGE_INV (float) (1.0f/float(THROTTLE_MAX - THROTTLE_OFFSET))
+#define A0 (float) 5.675764
+#define A1 (float) -13.991810
+#define A2 (float) 20.391148
+#define A3 (float) -0.081350
+#define ROLL_RES (float) 0.9
+#define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
+
+#define DECLINATION (float) 1.3
 #define GPS_GLITCH_SPEED (float) 20.0
 
 #define MODE_STOP 0x00
@@ -29,8 +42,9 @@
 #define COMMAND_ID 0X02
 
 #define CONTROL_FREQUENCY LOOP_FREQUENCY/2
-#define FUTURE_TIME (float)2/CONTROL_FREQUENCY
-#define CONTROL_TIME (float)1000/CONTROL_FREQUENCY //control time in ms
+#define FUTURE_TIME (float) 2/CONTROL_FREQUENCY
+#define CONTROL_TIME (float) 1000/CONTROL_FREQUENCY //control time in ms
+#define CONTROL_TIME_SEC (float) 1/CONTROL_FREQUENCY
 
 #define WP_CIRCLE 0.5 //1/2 meter radius around waypoint.
 
