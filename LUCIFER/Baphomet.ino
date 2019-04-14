@@ -15,9 +15,9 @@ void setup()
   PCMSK0 |= (1 << PCINT1); //9
   PCMSK0 |= (1 << PCINT2); //10
   PCMSK0 |= (1 << PCINT3); //11
-  pinMode(3,OUTPUT);
-  pinMode(4,OUTPUT);
-//  Serial.begin(38400);
+  pinMode(3,INPUT);
+  pinMode(4,INPUT);
+  Serial.begin(38400);
 }
 
 
@@ -57,19 +57,21 @@ void loop()
   {
     motor.writeMicroseconds(input[2]);
     steer.writeMicroseconds(input[0]);
+    Serial.println("got here");
   }
 
   if(servoWrite)
   {
     failsafe = millis();
     servoWrite = false;
-    takeover = false;
+//    takeover = false;
   }
-  if(millis() - failsafe > 1000)
+  if(millis() - failsafe > 1000&&takeover==false)
   {
     takeover = true;
-    motor.attach(3);
-    steer.attach(4);
+    motor.attach(4);
+    steer.attach(3);
+    Serial.print("in");
   }
   while( micros() - timer < 20000);
 }
@@ -123,5 +125,4 @@ ISR(PCINT0_vect)
     
   }
 }
-
 
