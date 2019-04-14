@@ -22,6 +22,7 @@
 #define ADNS3080_PIXELS_Y              30
 // Id returned by ADNS3080_PRODUCT_ID register
 #define ADNS3080_PRODUCT_ID_VALUE      0x17
+#define ADNS3080_EXTENDED_CONFIG      0x0B
 
 #define RESET_PIN PB0
 #define SS_PIN PA4
@@ -39,7 +40,7 @@ usage :
 	obj.updateOpticalFlow(data);//get that data baby
 */
 
-#define LPF_GAIN_OPFLOW (float)1/64.65674116
+#define LPF_GAIN_OPFLOW (float) (1/64.65674116)
 #define C1_OPFLOW (float)0.9690674172
 
 class OPFLOW
@@ -49,6 +50,7 @@ public:
 	void caliberation(float height,float angle); //use this in aerial vehicles or if the car's ride height changes. 
 	void updateOpticalFlow();
 	void reset_ADNS(void);
+	void set_6469(void);
 	bool initialize(void);
 	void spiWrite(uint8_t reg, uint8_t data);
 	void spiWrite(uint8_t reg, uint8_t *data, uint8_t len);
@@ -58,7 +60,7 @@ public:
 	float CALIBERATION;
 	float X, Y, V_x, V_y, SQ, P_Error, V_Error;
 	float shutter_Speed,max_pix;
-	float omega[2];
+	float omega[3];
 	float xA[4][2],yA[4][2];//for low pass filter
 	int8_t health;
 	bool failure;
