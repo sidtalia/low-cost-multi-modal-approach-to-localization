@@ -37,7 +37,7 @@
 #define C1_THROTTLE (float) 0.984414
 #define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN)
 
-#define LEARNING_RATE dt
+#define LEARNING_RATE (float) dt
 
 float yaw_correction(float input)
 {
@@ -61,17 +61,21 @@ class controller
 {
 	long stamp;
 	int throttle,steer;
-	float speed,speed_Error,roc,La,yR,last_Speed,last_Throttle,Ha,feedback_factor;
+	float speed,speed_Error,roc,La,yR,last_Speed,last_Throttle,Ha,feedback_factor,Process_noise,ground_Speed;
 	float xA[2][2],yA[2][2];//for low pass filter
+	bool IsLearning;
 	public:
 	controller()
 	{
 		stamp = millis(); //get time stamp
 		speed = 0;
 		speed_Error = 0;
+		Process_noise = INITIAL_NOISE;
 		last_Throttle = THROTTLENULL;
 		last_Speed = 0;
 		feedback_factor = 1;
+		IsLearning = true;
+		ground_Speed = 0;
 	}
 
 	float LPF(int i,float x)
@@ -85,7 +89,7 @@ class controller
 
 	float Curvature_To_Angle(float C)
 	{
-		if(fabs(C)<1)
+		if(fabs(C)<=1.1)
 		{
 			return RAD2DEG*WHEELBASE*C; //tan(x) = x for small values of x. bite me.
 		}
@@ -116,13 +120,23 @@ class controller
 		array[2] = roc;
 	}
 
-	void feedback(float fb)
+	void feedback(float est_speed,float est_error)
 	{
-		feedback_factor += fb*LEARNING_RATE; 
-		if(feedback_factor<0.1)
+		ground_Speed = est_speed; //get external speed : is injected into the LPF model when the car is under retardation
+		Process_noise += DECAY_RATE;
+		if(est_speed>MAX_LEARNING_SPEED or est_speed < MIN_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>0.2f*est_speed)
 		{
-			feedback_factor = 0.1;//prevent negative or 0 value.
+			IsLearning = false;
+			return;
 		}
+		IsLearning = true;
+
+		float gain = Process_noise/(Process_noise + est_error);
+		gain = check(gain,MAX_GAIN); // prevent jerk in the gain when learning is restarted.
+		Process_noise *= (1-gain);
+		feedback_factor += (speed - est_speed)*gain*LEARNING_RATE; //note that load has an inverse relationship with the speed.
+		feedback_factor = check(fabs(feedback_factor),MIN_FEEDBACK_FACTOR); //prevent values smaller than 0.7
+		return;
 	}
 
 	void calc_speed()
@@ -142,12 +156,13 @@ class controller
 		}
 		if(throttle<THROTTLE_OFFSET)
 		{
-			speed = 0;
-			speed_Error = 1e2;
+			speed = LPF(0,ground_Speed);//inject the estimated speed into the LPF to prime it until the car is on throttle again.
+			speed_Error = 1e6;
+
 		}	
 		else
 		{
-			if(throttle>THROTTLE_MAX) //this also limits the throttle sent to the esc.
+			if(throttle>THROTTLE_MAX)
 			{
 				throttle = THROTTLE_MAX;
 			}
@@ -157,13 +172,10 @@ class controller
 			speed /= (feedback_factor + load/ROLL_RES);
 			speed = LPF(0,speed);
 			
-			if((speed-last_Speed)*CONTROL_FREQUENCY>Ha)
-			{
-				speed = last_Speed + Ha*CONTROL_TIME_SEC;
-			}
+			// Sanity_Check(Ha*CONTROL_TIME+last_Speed, speed);
 			last_Speed = speed;
 
-			speed_Error = max(speed,1.0f);// max(1e2*fabs(speed - dummy),1.0f);//error is proportional to the target - estimated speed by Low pass filter model.
+			IsLearning ? speed_Error = 1e6 : speed_Error = max(speed,1.0f);// max(1e2*fabs(speed - dummy),1.0f);//error is proportional to the target - estimated speed by Low pass filter model.
 		}
 	}
 
