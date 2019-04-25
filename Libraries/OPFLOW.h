@@ -27,9 +27,14 @@
 #define RESET_PIN PB0
 #define SS_PIN PA4
 
-#define DEFAULT_CALIB (float)ride_height/128.0f
+#define DEFAULT_CALIB (float) ride_height/128.0f
 #define DEFAULT_DT dt
-#define DEFAULT_FREQ 1/dt
+#define DEFAULT_FREQ (float) 1/dt
+#define NORMALIZE (float) 0.005917f
+#define K0 (float) -342.9424f
+#define K1 (float)  611.3164f
+#define K2 (float) -362.7465f
+#define K3 (float)	 71.6616f
 /*
 usage : 
 	OPFLOW obj;
@@ -48,6 +53,7 @@ class OPFLOW
 public:
 	OPFLOW();
 	void caliberation(float height,float angle); //use this in aerial vehicles or if the car's ride height changes. 
+	float error_calc();
 	void updateOpticalFlow();
 	void reset_ADNS(void);
 	void set_6469(void);
