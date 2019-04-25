@@ -17,6 +17,14 @@ void OPFLOW::caliberation(float height, float angle)//distance measured by a ran
   CALIBERATION = true_height/128.0f;//new caliberation.
 }
 
+float OPFLOW::error_calc()
+{
+  float x = SQ*NORMALIZE;
+  float x2 = x*x;
+  float x3 = x2*x;
+  return K0*x3 + K1*x2 + K2*x + K3;
+}
+
 void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 {
   // Read sensor
@@ -39,11 +47,10 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     max_pix = float(pix);
     if(SQ<10)
     {
-      SQ = 10; //sanity check
+      SQ = 10.0f; //sanity check
     }
-    P_Error = exp(9.0f - SQ*0.11); //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
-    V_Error = LOOP_FREQUENCY*P_Error;
-
+    V_Error = error_calc();
+    P_Error = V_Error; //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
     // if(SQ>60)
     // {
     //   P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
@@ -56,9 +63,9 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     //   V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
     // }
 
-    X += omega[1]*ride_height*dt*0.1; //the sign was flipped on 11/2/19 3:28pm
+    X += omega[1]*ride_height*dt*0.1f; //the sign was flipped on 11/2/19 3:28pm
     X = LPF(0,X);
-    Y -= omega[0]*ride_height*dt*0.1; //compensation for rotations ya know. this sign was also flipped. please run a test.
+    Y -= omega[0]*ride_height*dt*0.1f; //compensation for rotations ya know. this sign was also flipped. please run a test.
     Y = LPF(1,Y);
   } 
 	else if(motion & 0x10)  //buffer overflow
