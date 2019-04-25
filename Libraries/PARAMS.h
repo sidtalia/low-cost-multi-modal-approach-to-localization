@@ -5,7 +5,7 @@
 #define LOOP_FREQUENCY (float) 400
 #define dt_micros (int) 2500
 
-#define ride_height (float) 0.06 //6.2cms height of the sensor.
+#define ride_height (float) 0.052 //6.2cms height of the sensor.
 #define DIST_BW_ACCEL_AXLE (float) 0.225// distance between rear axle and accelerometer
 #define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
 #define DAMPING (float) 0.4f
@@ -20,9 +20,16 @@
 #define A3 (float) -0.081350
 #define ROLL_RES (float) 0.9
 #define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
+#define MAX_LEARNING_SPEED (float) 3.0f
+#define MIN_LEARNING_SPEED (float) 0.5f
+#define MAX_GAIN (float) 0.1f
+#define DECAY_TIME (float) 10.0f //time in seconds after which car's model becomes practically useless
+#define DECAY_RATE (float) dt/DECAY_TIME 
+#define INITIAL_NOISE (float) 1.0f
+#define MIN_FEEDBACK_FACTOR 0.7
 
-#define DECLINATION (float) 1.3
-#define GPS_GLITCH_SPEED (float) 20.0
+#define DECLINATION (float) -1.3f
+#define GPS_GLITCH_SPEED (float) 5.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
 #define MODE_STANDBY 0X01
