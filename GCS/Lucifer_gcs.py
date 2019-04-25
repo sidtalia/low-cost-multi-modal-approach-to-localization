@@ -375,7 +375,3 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
-
-
-
-
