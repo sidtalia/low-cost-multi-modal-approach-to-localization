@@ -572,11 +572,10 @@ void MPU9150::compute_All()
     V += Ha*dt;//propogate the state through time.
     V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error
   }
-  V_mes = V; //dummy variable. Assuming the V so far to be accurate.
+  //FUSING MODEL's velocity with estimated velocity
   gain = V_Error/(encoder_velocity[1] + V_Error); //encoder_velocity[0] is error, [1] is actual speed
   V = (1.0f-gain)*V + gain*encoder_velocity[0]; //correction step
   V_Error *= (1-gain); 
-  encoder_feedback = V_mes>=0? (encoder_velocity[0] - V_mes)*(1-gain) : 0 ; //feedback to the model
   return;
 }//570us worst case. 
 
