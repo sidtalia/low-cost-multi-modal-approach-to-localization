@@ -3,7 +3,7 @@ import numpy as np
 import math as meth
 from scipy.ndimage.filters import gaussian_filter
 
-data = np.load('LUCIFER_log_2019_4_14_10_24.npy')#42
+data = np.load('LUCIFER_log_2019_4_14_10_24.npy')#10,8,42,#23,8,35
 # data1 = np.load('LUCIFER_log_gps_2019_2_28_21_54.npy')
 
 
@@ -67,10 +67,24 @@ def fit(x,c):
 	return c[0]*x**3 + c[1]*x**2 + c[2]*x + c[3]
 
 # # position plot : 
-# plt.plot(111392*(lon[:-55] - lon[0]),111392*(lat[:-55]-lat[0]), label='filtered')
+# plt.plot(111392*(lon[:] - lon[0]),111392*(lat[:]-lat[0]), label='filtered')
 # plt.xlabel('X (m)')
 # plt.ylabel('Y (m)')
-# plt.plot(111392*(gps_lon - lon[0] ),111392*(gps_lat - lat[0]), label='raw gps')
+# plt.plot(111392*(gps_lon - gps_lon[0] ),111392*(gps_lat - gps_lat[0]), label='raw gps')
+dist_cord = 0
+dist_vel = 0
+dist_gps = 0
+lon *= 111392.84
+lat *= 111392.84
+gps_lon *= 111392.84
+gps_lat *= 111392.84
+for i in range(1,len(lon)):
+	dist_cord += meth.sqrt((lon[i]-lon[i-1])**2 + (lat[i]-lat[i-1])**2)
+	dist_gps += meth.sqrt((gps_lon[i] - gps_lon[i-1])**2 + ( gps_lat[i] - gps_lat[i-1])**2 )
+	dist_vel += 0.1*(speed[i]+speed[i-1])/2
+
+print(dist_vel,dist_cord,dist_gps)
+
 
 #modelling speed : 
 # exec_time = np.array([1550,1600,1640,1690,1750,1810])
@@ -100,7 +114,7 @@ def fit(x,c):
 # speed = gaussian_filter(speed,sigma=2)
 # optical = gaussian_filter(optical,sigma=2)
 # plt.plot(t,speed,label='filtered speed')
-# plt.plot(t,optical,label='optical flow speed')
+# plt.plot(t,optical,label='optical')
 # plt.ylabel('speed in m/s')
 # plt.xlabel('time in seconds')
 # plt.plot(t,LPF(optical),label='LOW passed')
@@ -108,12 +122,34 @@ def fit(x,c):
 # for optical flow testing :
 # op_SQ = gaussian_filter(op_SQ,sigma=10) 
 # plt.plot(t,op_SQ/10,label='SQ')
-# plt.scatter(op_SQ,error,label='measured variance')
-# plt.plot(x,func,label='best fit variance')
-# # plt.ylim((50,100))
-# plt.ylabel('error')
+# for finding variance : 
+# variance = np.zeros(50)
+# for i in range(50):
+# 	target_value = i+60
+# 	error_list = []
+# 	for j in range(len(op_SQ)):
+# 		if(op_SQ[j]==target_value):
+# 			error_list.append(error[j])
+# 	error_list = np.array(error_list)
+# 	if(len(error_list)!=0):
+# 		variance[i] = np.var(error_list)
+
+# dummy_SQ = np.arange(60,110,1)
+
+# plt.scatter(op_SQ,error,label='raw data')
+# plt.scatter(dummy_SQ,variance,label='measured variance')
+# c = np.polyfit(dummy_SQ[30:]/169,variance[30:],3)
+# t_ = np.arange(60,110,1)
+# anal_var = fit(t_/169,c)
+# plt.scatter(t_,anal_var,label='analytical variance')
+# print(c)
+# # plt.plot(x,func,label='best fit variance')
+# # # plt.ylim((50,100))
+# plt.ylabel('error (m/s)')
 # plt.xlabel('surface Quality')
 # plt.plot(np.arange(0,len(lat)/10,0.1),speed,label='speed')
+
+
 plt.legend()
 
 plt.show()
