@@ -221,8 +221,8 @@ public :
 			float temp_X = gps_X; //last gps coordinates.
 			float temp_Y = gps_Y; 
 
-			gps_X = last_X = float((lon - iLon)*DEG2METER);// + last_X;//getting the last gps position 
-			gps_Y = last_Y = float((lat - iLat)*DEG2METER);// + last_Y; 
+			gps_X = last_X = float((lon - lastLon)*DEG2METER) + last_X;//getting the last gps position 
+			gps_Y = last_Y = float((lat - lastLat)*DEG2METER) + last_Y; 
 
 			lastLon = lon;//setting lastLat, lastLon for next iteration
 			lastLat = lat; 
@@ -235,7 +235,7 @@ public :
 			last_Y = PosGain_Y*last_Y + (1-PosGain_Y)*past_Y; // last_X,last_Y are the past corrected position 
 															  //(I didn't create separate variables for measurement because it seemed like a waste of memory)
 			GPS_Velocity = distancecalcy(gps_X,temp_X,gps_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from gps coordinates
-			if(GPS_Velocity>GPS_GLITCH_SPEED)//prevent gps glitch from doing me harm.
+			if( fabs(GPS_Velocity - Velocity) > GPS_GLITCH_SPEED)//prevent gps glitch from doing me harm.
 			{
 				position_reset = true;
 			}
