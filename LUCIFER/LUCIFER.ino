@@ -135,10 +135,8 @@ void loop()
   timer = micros();//this is to ensure that the cycle time remains constant at 2500us. How do I know it's not exceeding that limit? 
                     //I unit test each of the functions to check how much time they take to execute.
   //get sensor data
-  
   control.get_model(marg.encoder_velocity); //comment out if not using output throttle signal as a rough speed estimate
   marg.compute_All(); //get AHRS (and Velocity as well) from IMU. 980us, has failsafe in case sensor is reset somehow
-  control.feedback(marg.encoder_feedback);//giving feedback to the car's model.
   
   marg.get_Rotations(opticalFlow.omega); //transfer rates of rotation
   opticalFlow.updateOpticalFlow(); //update optical flow 150us
@@ -148,6 +146,8 @@ void loop()
              opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
   marg.Velocity_Update(car.Velocity,car.VelError,car.AccBias);//pass the corrected velocity back to marg where it gets low pass filtered too.
+  
+  control.feedback(car.Velocity,car.VelError);//giving feedback to the car's model for making the machine learn the parameter(s) of the model
 //transfer the bias. this is pretty much the reason why the update function does not take arguments by reference
   //till here it takes 120us, total at 1330us
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
@@ -268,7 +268,7 @@ void loop()
   }
   if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY)//manual modes
   {
-    float dum[] = {0.0,0.0};//dummy
+    float dum[] = {1.0,1.0};//dummy
     control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
   if(T > dt_micros)//in case the execution time exceeds loop time limit
