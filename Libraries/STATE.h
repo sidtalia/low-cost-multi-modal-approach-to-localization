@@ -166,10 +166,10 @@ public :
 		dSError = VelError*dt;//error in instantaneous distance travelled
 		dTheta = mh_Error*DEG2RAD;//error in heading
 
-		PosError_Y += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
-		PosError_Y = fabs(PosError_Y);//ensure that it stays positive
-		PosError_X += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives.
-		PosError_X = fabs(PosError_X);//ensure it stays positive.
+		PosError_X += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
+		PosError_X = fabs(PosError_X);//ensure that it stays positive
+		PosError_Y += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives.
+		PosError_Y = fabs(PosError_Y);//ensure it stays positive.
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
