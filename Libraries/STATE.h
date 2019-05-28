@@ -4,12 +4,13 @@
 #include"PARAMS.h"
 #include"Arduino.h"
 
-#define GPS_UPDATE_RATE (float)10 //gps update rate in Hz
-#define GPS_UPDATE_TIME (float)0.1
+#define GPS_UPDATE_RATE (float) 10 //gps update rate in Hz
+#define GPS_UPDATE_TIME (float) 0.1
 #define MIN_GPS_SPEED (float) 3.0 //min speed till which gps is not used for velocity correction
 #define GPS_HDOP_LIM (float)2.5
-#define C1_STATE (float)0.9690674172
-#define LPF_GAIN_STATE (float)1/64.65674116
+#define GPS_GLITCH_RADIUS (float) 3.0 
+#define C1_STATE (float) 0.984414
+#define LPF_GAIN_STATE (float) 1/128.321336
 
 class STATE
 {
@@ -22,6 +23,8 @@ public :
 	bool position_reset;
 	float drift_Angle;
 	float xA[2][4],yA[2][4];
+	float GPS_Velocity,GPS_SAcc; //velocity from gps
+	float last_cosmh,last_sinmh;
 
     float LPF(int i,float x)
 	{
@@ -51,21 +54,24 @@ public :
 		past_PosError_Y = PosError_Y;
 		VelError = past_VelError = 0;
 		heading = head;
+		last_cosmh = cosf(head*DEG2RAD);
+		last_sinmh = sinf(head*DEG2RAD);
 		Velocity = past_Velocity = last_Velocity = Vel;
 		Acceleration = acc; //initially acc, vel should be close to 0
 	}
 
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
 	void state_update(double lon, double lat, bool tick,double Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
-						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error)
+						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error,float model[3])
 	{
-		float cosmh = cos(mh*DEG2RAD);
-		float sinmh = sin(mh*DEG2RAD);
-		float Xacc,Yacc,dS,dSError,dTheta;
+		float cosmh = cosf(mh*DEG2RAD); //OPTIMIZE
+		float sinmh = sinf(mh*DEG2RAD);
+		float Xacc,Yacc,dS_y,dS_x,dSError,dTheta,tan_phi;
 		float PosGain_Y, PosGain_X, VelGain;
+		float separation;
+		float shift_X=0,shift_Y=0,innovation=0; // added on 5/5/19
 		heading = mh;
 		VelError = VError; //VelError is the velocity erro in the "state." I'm transferring the velocity error from outside to the object member
-		float GPS_Velocity,GPS_SAcc; //velocity from gps
 		/*
 		OVERVIEW:
 		OVERVIEW OF COMMON SENSE FILTER : (aka kalman filter)
@@ -117,8 +123,8 @@ public :
 		say moving on a curved path, then the error in the estimated position is not only due to the error in speed but also due to
 		the error in the estimated bearing. When we deal with a 1-D case, the formula for error in the estimated position is obtained 
 		from the derivative of the position, i.e., is position = V*dt, then position_Error = dV *dt, where dV is the error in speed.
-		here, the position is 2 dimensional, position_X = speed*cos(bearing)*dt, position_Y = speed*sin(bearing)*dt,
-		therefore error_X = (error_in_speed*cos(bearing) - speed*sin(bearing)*error_in_bearing)*dt and similarly you can find the formula for error_Y
+		here, the position is 2 dimensional, position_X = speed*cosf(bearing)*dt, position_Y = speed*sinf(bearing)*dt,
+		therefore error_X = (error_in_speed*cosf(bearing) - speed*sinf(bearing)*error_in_bearing)*dt and similarly you can find the formula for error_Y
 
 		Now in a standard implementation of EKF, the above thing is actually represented by a jacobian matrix 
 		(the determinant of the jacobian should result in the above equations). Here, I lay out the inner workings in plain view for all to understand.
@@ -144,37 +150,41 @@ public :
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
-
+		if(Velocity>3.0f) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
+		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
+			OF_V_Error *= 1e3;
+			OF_P_Error = OF_V_Error;
+		}	
 		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because the car's motion is constrained. While you could compute the 
 								//Velocity in the NED fashion, it would be equivalent to going on a fools errand here. If there is a constraint, exploit it.
-		if(Velocity>3) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
-		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
-			VelGain *= 0.001;
-		}	
+
 		Velocity = OF_V_Y*VelGain + (1-VelGain)*Vacc;//correcting the velocity estimate
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-		AccBias += (Vacc - Velocity)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
-		
+		if(OF_V_Error<1)
+		{
+			AccBias += (Vacc - OF_V_Y)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
+		}
+		//use the optical flow speed to prevent the bias from skyrocketting the fuck outta dodge.
 		//this is the covariance stuff(using the corrected estimates to correct errors in states other than the one being corrected)
 		//distance moved in last cycle
 		
-		dS = Velocity*dt + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
-		Xacc = X + dS*cosmh;// + sinmh*OF_X; //estimated X position. OF_X is the sideways movement measured by the optical flow senosr(can't do that with a wheel encoder can you now?)
-		Yacc = Y + dS*sinmh;// + cosmh*OF_X; //estimated Y position
+		dS_y = Velocity*dt;// + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
+		Xacc = X + dS_y*cosmh; //estimated X position.
+		Yacc = Y + dS_y*sinmh; //estimated Y position
 		dSError = VelError*dt;//error in instantaneous distance travelled
 		dTheta = mh_Error*DEG2RAD;//error in heading
 
-		PosError_X += dSError*cosmh - dS*sinmh*dTheta;//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
-		PosError_X = fabs(PosError_X);//ensure that it stays positive
-		PosError_Y += dSError*sinmh + dS*cosmh*dTheta;//the jacobian is simply a matrix that contains the partial derivatives.
-		PosError_Y = fabs(PosError_Y);//ensure it stays positive.
+		PosError_X += fabs(dSError*cosmh - dS_y*sinmh*dTheta);//remember that thing called the "Jacobian matrix" in EKF? Yeah. These are the terms from that matrix.
+		PosError_Y += fabs(dSError*sinmh + dS_y*cosmh*dTheta);//the jacobian is simply a matrix that contains the partial derivatives.
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
-		X += cosmh*OF_Y + sinmh*OF_X; // the optical flow can measure movement along the car's X and Y directions.
-		Y += sinmh*OF_Y - cosmh*OF_X; //
+		tan_phi = OP_POS/model[2];
+		dS_x = -OF_Y*tan_phi; //this is to account for the fact that the car is not a point object.
+		X += cosmh*OF_Y + sinmh*(OF_X - dS_x); // the optical flow can measure movement along the car's X and Y directions.
+		Y += sinmh*OF_Y - cosmh*(OF_X - dS_x); //
 
 		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
 		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
@@ -185,24 +195,24 @@ public :
 		
 
 
-		if(position_reset && Hdop < GPS_HDOP_LIM && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
-		{
-			lastLat = lat;
-			lastLon = lon;
-			last_X = past_X = X - Velocity*GPS_UPDATE_TIME*cosmh; //too dumb to solve this problem in a sophisticated manner 
-			last_Y = past_Y = Y - Velocity*GPS_UPDATE_TIME*sinmh;
-			past_Velocity = last_Velocity = Velocity; //initialize the "past_velocity"
-			past_VelError = VelError;
-			past_PosError_X = PosError_X;
-			past_PosError_Y = PosError_Y;
+		// if(position_reset && Hdop < GPS_HDOP_LIM && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
+		// {
+		// 	lastLat = lat;
+		// 	lastLon = lon;
+		// 	last_X = past_X = X - Velocity*GPS_UPDATE_TIME*cosmh; //Ideally one should use a buffer for this, but since I don't have an abundance of memory, I will have to make do.
+		// 	last_Y = past_Y = Y - Velocity*GPS_UPDATE_TIME*sinmh;
+		// 	past_Velocity = last_Velocity = Velocity; //initialize the "past_velocity"
+		// 	past_VelError = VelError;
+		// 	past_PosError_X = PosError_X;
+		// 	past_PosError_Y = PosError_Y;
 
-			iLat = lat - double(Y*METER2DEG);
-			iLon = lon - double(X*METER2DEG);
+		// 	iLat = lat - double(past_Y*METER2DEG);//lat lon reported by gps matches with the past value of position.
+		// 	iLon = lon - double(past_X*METER2DEG);
 
-			position_reset = false;//prevent this code block from being re-executed
-		}
+		// 	position_reset = false;//prevent this code block from being re-executed
+		// }
 		//POSITION ESTIMATION USING GPS + ESTIMATED POSITION FROM PREVIOUS METHODS
-		if(tick && (Hdop < GPS_HDOP_LIM) && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
+		if(tick && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
 		{	/*
 			We have the current estimate for the position, but the gps data corresponds to the position 100ms ago (the gps update rate is 10Hz).
 			So we have to do the data fusion in the past, find the corrected position in the past and then shift the current position estimate by
@@ -218,15 +228,21 @@ public :
 			3.2 - 3.4 = -0.2 
 			meaning that my current position estimate is shifted to 5 + (-0.2) = 4.8 meters.
 			*/
-			float temp_X = gps_X; //last gps coordinates.
+			float temp_X = gps_X; //last gps coordinates. edited on 5/5/19. gps_X
 			float temp_Y = gps_Y; 
-
-			gps_X = last_X = float((lon - lastLon)*DEG2METER) + last_X;//getting the last gps position 
-			gps_Y = last_Y = float((lat - lastLat)*DEG2METER) + last_Y; 
+			Hdop *= Hdop*Hdop;
+			gps_X = last_X = float((lon - iLon)*DEG2METER);// + last_X;//getting the last gps position 
+			gps_Y = last_Y = float((lat - iLat)*DEG2METER);// + last_Y; 
 
 			lastLon = lon;//setting lastLat, lastLon for next iteration
 			lastLat = lat; 
-
+			
+			separation = distancecalcy(gps_X,past_X,gps_Y,past_Y,0);
+			if(separation> GPS_GLITCH_RADIUS || (Hdop > GPS_HDOP_LIM)) 
+			{
+				position_reset = true;
+				Hdop = 1e7;
+			}
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
 			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
 			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
@@ -234,20 +250,25 @@ public :
 			last_X = PosGain_X*last_X + (1-PosGain_X)*past_X; // past_X,past_Y are the past Estimates for position 
 			last_Y = PosGain_Y*last_Y + (1-PosGain_Y)*past_Y; // last_X,last_Y are the past corrected position 
 															  //(I didn't create separate variables for measurement because it seemed like a waste of memory)
-			GPS_Velocity = distancecalcy(gps_X,temp_X,gps_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from gps coordinates
-			if( fabs(GPS_Velocity - Velocity) > GPS_GLITCH_SPEED)//prevent gps glitch from doing me harm.
-			{
-				position_reset = true;
-			}
+			GPS_Velocity = distancecalcy(gps_X,temp_X,gps_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from gps coordinates// changed on 5/5/19 to get velocity from corrected position.
 			if(GPS_Velocity > MIN_GPS_SPEED && !position_reset)//explanation given in the codeblock itself.
 			{
 				//TODO : take component of gps velocity along the nose of the car.
-				GPS_SAcc = Hdop*GPS_UPDATE_RATE; //Velocity error = position error/dt . this is according to the correlation between speed and distance
+				GPS_SAcc = Hdop*GPS_UPDATE_RATE; //Velocity variance for gps readings was found to be similar to the hAcc readings.
 				//the velocity error is the average of the old position estimate error and the new position estimate error multiplied by the update rate. 
 				VelGain = (past_VelError/(past_VelError + GPS_SAcc)); //find the gain to correct the past estimate
 				last_Velocity = VelGain*GPS_Velocity + (1-VelGain)*past_Velocity;//correct the last velocity.
-				Velocity += (last_Velocity - past_Velocity);//shift the new velocity by the "innovation"
+				
+				innovation = (last_Velocity - past_Velocity);
+				
+				Velocity += innovation;//shift the new velocity by the "innovation" 5/5/19
 				VelError *= (1-VelGain); //reduce the velocity error
+				
+				shift_X = innovation*GPS_UPDATE_TIME*(cosmh+last_cosmh)*0.5f;// I need you to get wayy off my back on the logistics of this.5/5/19
+				shift_Y = innovation*GPS_UPDATE_TIME*(sinmh+last_sinmh)*0.5f;//5/5/19
+				last_cosmh = cosmh;//5/5/19
+				last_sinmh = sinmh;
+				
 				//this is the "magical thing" about kfs that the kf boys(including myself) nut to before we sleep. 
 				//Not only is it correcting the position estimate(which is what you initially wanted), it is also correcting the velocity estimate by
 				//exploiting the relation between speed and position. Now the problem here is that if you're travelling at really slow speeds 
@@ -266,18 +287,34 @@ public :
 										   //In my estimation, this should produce decent results too.
 			past_VelError = VelError; //past Velocity error is the current velocity error now
 
-			X += (last_X - past_X);
-			Y += (last_Y - past_Y); //shift by the difference between last corrected position and last estimated position.
+			X += (last_X - past_X) + shift_X; //some part of the shift is due to the velocity correction correcting the position. 5/5/19
+			Y += (last_Y - past_Y) + shift_Y; //shift by the difference between last corrected position and last estimated position.
 
 			past_X = X; //the value of X,Y,V become the "past estimates"(=last predicted velocities) for the next iteration
 			past_Y = Y;
 			past_Velocity = Velocity;
 		}
+		if(position_reset && Hdop < GPS_HDOP_LIM && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
+		{
+			lastLat = lat;
+			lastLon = lon;
+			last_X = past_X = X;
+			last_Y = past_Y = Y;
+			past_Velocity = last_Velocity = Velocity; //initialize the "past_velocity"
+			past_VelError = VelError;
+			past_PosError_X = PosError_X;
+			past_PosError_Y = PosError_Y;
+
+			iLat = lat - double(past_Y*METER2DEG);//lat lon reported by gps matches with the past value of position.
+			iLon = lon - double(past_X*METER2DEG);
+
+			position_reset = false;//prevent this code block from being re-executed
+		}
 
 		latitude = iLat + double(Y*METER2DEG); //change lat and long accordingly. 
 		longitude = iLon + double(X*METER2DEG);
 		//note that if the location was initially wrong, resetting the iLat resets the lon/lat estimates without disturbing the relative position estimates 
-		PosError_tot = distancecalcy(0,PosError_Y,0,PosError_Y,0);
+		PosError_tot = distancecalcy(0,PosError_X,0,PosError_Y,0);//OPTIMIZE
 		drift_Angle = (OF_V_X/Velocity); //uncomment when you have a quick atan function
 		// LPF(0,Velocity); //use this if you have a really noisy accelerometer but avoid at all costs.
 		return ;
