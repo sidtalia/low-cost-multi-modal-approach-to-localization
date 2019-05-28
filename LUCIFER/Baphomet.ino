@@ -53,8 +53,10 @@ void loop()
     motor.writeMicroseconds(1500);
     steer.writeMicroseconds(1500);
   }
-  else if(takeover && !(input[2]<1000) )
+  else if((takeover && !(input[2]<1000))or input[4]>1500)//SWITCH 5 IS THE KILL SWITCH.
   {
+    pinMode(11,OUTPUT);
+    pinMode(10,OUTPUT);
     motor.writeMicroseconds(input[2]);
     steer.writeMicroseconds(input[0]);
     Serial.println("got here");
