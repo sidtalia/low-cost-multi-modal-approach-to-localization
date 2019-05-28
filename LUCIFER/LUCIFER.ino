@@ -112,7 +112,8 @@ void setup()
     }
   }
   while(gps.fix_type()<2 && millis() - timeout < FIX_TIMEOUT );
-  if(gps.fix_initial_position()) //get initial coordinates
+//  if(gps.fix_initial_position()&&0) //get initial coordinates
+  if(0)
   {
     GPS_FIX = 1;
   }
@@ -143,7 +144,7 @@ void loop()
   gps.localizer(); //update gps. 12us
   //till here it takes 180us, total at 1170us
   car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, marg.mh, marg.mh_Error, marg.Ha, marg.V, marg.V_Error,
-             opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error); //I know i could've just passed the gps, marg and optical
+             opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error,marg.encoder_velocity); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
   marg.Velocity_Update(car.Velocity,car.VelError,car.AccBias);//pass the corrected velocity back to marg where it gets low pass filtered too.
   
@@ -152,8 +153,8 @@ void loop()
   //till here it takes 120us, total at 1330us
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
 //  time_it = micros();
-  gcs.Send_State(MODE, car.longitude, car.latitude,gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  opticalFlow.V_y, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
+  gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
 //  benchmark = max(micros()-time_it,benchmark);
   if(gcs.get_Mode()!=255)
   {
@@ -266,9 +267,9 @@ void loop()
     track.calculate_Curvatures(car.Velocity, car.X, car.Y, car.heading, dest_X, dest_Y, slope ); //TODO : find only local maxima not global maxima.
     control.driver(track.C, track.braking_distance, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs); //send data to driver code. automatically maintains a separate control frequency.
   }
-  if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY)//manual modes
+  if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY || MODE==MODE_CONTROL_CHECK)//manual modes
   {
-    float dum[] = {1.0,1.0};//dummy
+    float dum[] = {0.0,0.0};//dummy
     control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
   if(T > dt_micros)//in case the execution time exceeds loop time limit
