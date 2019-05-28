@@ -8,7 +8,7 @@
 
 
 #define WHEELBASE (float)0.254 //wheelbase in meters
-#define STEERING_MAX 30 //25 degrees max steering 
+#define STEERING_MAX 25 //25 degrees max steering 
 #define STEERING_PULSE_LOCK2CENTER 372 //pulse difference between center steering and steering at full lock. they might be different for your car.
 #define ABSOLUTE_MAX_ACCELERATION 10 //10m/s*s. This is the absolute maximum acceleration the car can handle
 #define MAX_ACCELERATION (float) (0.7*ABSOLUTE_MAX_ACCELERATION)
@@ -17,19 +17,21 @@
 #define SAFE_DECELERATION -0.4*MAX_ACCELERATION //the threshold deceleration for us to start braking. This is ~1/2 of the MAX_ACCELERATION 
 		//because weight shifting under braking is an absolute bitch when it comes to mid-CG rear wheel braking cars (mine for example)
 
-#define maxValue (int)2000
-#define minValue (int)1000
+#define maxValue (int) 2000
+#define minValue (int) 1000
 #define STEERINGNULL 1500
 #define THROTTLENULL 1500
-#define VMAX (float)17.0 //maximum speed that my car can hit.
-#define SAFE_SPEED (float)2.5 //safe cruise speed defined as 2.5 m/s. Basically this is how fast I can run after the car if something went wrong.
-#define OPEN_GAIN (float)25.0 //open loop throttle gain. I am assuming a linear relationship between throttle input and speed
-#define CLOSED_GAIN (float)10 //closed loop gain. This helps me deal with the fact that the relation between throttle and speed is not exactly linear
+#define VMAX (float) 17.0 //maximum speed that my car can hit.
+#define SAFE_SPEED (float) 2.5 //safe cruise speed defined as 2.5 m/s. Basically this is how fast I can run after the car if something went wrong.
+#define OPEN_GAIN (float) 25.0 //open loop throttle gain. I am assuming a linear relationship between throttle input and speed
+#define CLOSED_GAIN (float) 10 //closed loop gain. This helps me deal with the fact that the relation between throttle and speed is not exactly linear
 #define BRAKE_GAIN (float) (250/MAX_ACCELERATION) //brake gain. Explained later.
 #define STEERING_OPEN_GAIN (float)(STEERING_PULSE_LOCK2CENTER/STEERING_MAX) //open loop gain between steering angle and pwm value. The relationship is assumed to be linear but is not and 
 #define STEERING_CLOSED_GAIN (float)0.7 //hence I use a closed loop gain as well to control the steering. This gain is based on "how fast can your steering turn lock to lock?"
 			//I will make it a little more generic so that ya'll can just put in your servo specs
 			// (slightly inaccurate open + closed) loop control > mathematical model of the system. Why? because life is full of uncertainties.
+#define STEERING_TRUST (float) 0.8
+#define STEERING_TRUST_1 (float) 0.2
 
 #define CRITICAL_YAW (float) 90 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
 #define VARIABLE_GAIN (float) (1/CRITICAL_YAW)
@@ -59,12 +61,15 @@ float check(float input,float threshold)
 
 class controller
 {
-	long stamp;
+	long stamp,showboat_timer;
 	int throttle,steer;
-	float speed,speed_Error,roc,La,yR,last_Speed,last_Throttle,Ha,feedback_factor,Process_noise,ground_Speed;
+	float speed,speed_Error,roc,La,yR,last_Speed,last_Throttle,Ha,Process_noise,ground_Speed;
+	float steering_bias;
 	float xA[2][2],yA[2][2];//for low pass filter
-	bool IsLearning;
+	bool IsLearning,IsOversteering;
 	public:
+	float feedback_factor;
+	bool control_check;
 	controller()
 	{
 		stamp = millis(); //get time stamp
@@ -75,7 +80,11 @@ class controller
 		last_Speed = 0;
 		feedback_factor = 1;
 		IsLearning = true;
+		IsOversteering = false;
 		ground_Speed = 0;
+		roc = 1e6;
+		steering_bias=0;
+		control_check = false;
 	}
 
 	float LPF(int i,float x)
@@ -95,7 +104,7 @@ class controller
 		}
 		else
 		{
-			return RAD2DEG*atan(WHEELBASE*C);
+			return RAD2DEG*atanf(WHEELBASE*C);
 		}
 	}
 
@@ -124,7 +133,7 @@ class controller
 	{
 		ground_Speed = est_speed; //get external speed : is injected into the LPF model when the car is under retardation
 		Process_noise += DECAY_RATE;
-		if(est_speed>MAX_LEARNING_SPEED or est_speed < MIN_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>0.2f*est_speed)
+		if(est_speed>MAX_LEARNING_SPEED or est_speed < MIN_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>speed)
 		{
 			IsLearning = false;
 			return;
@@ -143,7 +152,7 @@ class controller
 	{
 		roc = DEG2RAD*(steer - STEERINGNULL)/STEERING_OPEN_GAIN;
 		roc = check(roc,1e-3);//the steering angle must not be less than 1e-3 radians or 0.0573 degrees effectively a radius of more than 225 meters will not be accepted. This prevents the possibility of running into NaNs 
-		roc = WHEELBASE/tan(roc);//this is how you reuse variables kids. roc does not have to be very accurate but it does have to be stable.
+		roc = WHEELBASE/tanf(roc);//this is how you reuse variables kids. roc does not have to be very accurate but it does have to be stable.
 		// if(throttle - last_Throttle > THROTTLE_DELTA)
 		// {
 		// 	throttle = last_Throttle + THROTTLE_DELTA;
@@ -152,11 +161,28 @@ class controller
 		
 		if(fabs(yR) > 0.17)
 		{
-			roc = 0.95*roc - 0.05*(La/(yR*yR));
+			float dummy = roc;
+			float meas_roc = -La/(yR*yR);
+			roc = STEERING_TRUST*(roc+steering_bias) + STEERING_TRUST_1*meas_roc;
+			steering_bias = roc - dummy; //this fixes the problem of understeer/oversteer throwing off roc estimates.
+			if(dummy*meas_roc<0)
+			{
+				roc = meas_roc;//TODO : CHECK IF THIS WAS A CAUSE.
+				IsOversteering = true;
+			}
+			else
+			{
+				IsOversteering = false;
+			}
+		}
+		else
+		{
+			steering_bias=0; //reset bias to 0 to prevent problems.
 		}
 		if(throttle<THROTTLE_OFFSET)
 		{
 			speed = LPF(0,ground_Speed);//inject the estimated speed into the LPF to prime it until the car is on throttle again.
+			last_Speed = speed;
 			speed_Error = 1e6;
 
 		}	
@@ -171,12 +197,14 @@ class controller
 			float load = fabs(La*COG/roc);
 			speed /= (feedback_factor + load/ROLL_RES);
 			speed = LPF(0,speed);
-			
-			// Sanity_Check(Ha*CONTROL_TIME+last_Speed, speed);
+			if(speed>MIN_LEARNING_SPEED)
+			{
+				Sanity_Check(MAX_ACCELERATION*CONTROL_TIME+last_Speed, speed);
+			}
 			last_Speed = speed;
 
-			IsLearning ? speed_Error = 1e6 : speed_Error = max(speed,1.0f);// max(1e2*fabs(speed - dummy),1.0f);//error is proportional to the target - estimated speed by Low pass filter model.
-		}
+			IsLearning|IsOversteering ? speed_Error = 1e6 : speed_Error = fabs(max(speed,3.0f));// max(1e2*fabs(speed - dummy),1.0f);//error is proportional to the target - estimated speed by Low pass filter model.
+		}//changes made on 5/5/19
 	}
 
 	//the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
@@ -268,10 +296,24 @@ class controller
 			}
 		}
 
-		else if(MODE == MODE_STANDBY)
+		else if(MODE == MODE_STANDBY||MODE == MODE_CONTROL_CHECK)
 		{
 			throttle = THROTTLENULL;
 			steer = inputs[0];
+			if(MODE==MODE_CONTROL_CHECK||control_check)
+			{
+				if(!control_check)
+				{
+					showboat_timer = millis();
+					control_check = true;
+				}
+				else if(control_check && millis()-showboat_timer>1000)
+				{
+					control_check = false;
+				}
+				float t = (millis()-showboat_timer)*1e-3;
+				steer = STEERINGNULL + STEERING_PULSE_LOCK2CENTER*sinf(M_2PI*t);
+			}
 			calc_speed();
 			set_Outputs_Raw(throttle,steer); //pass through but only for steering
 			return ; //GTFO 
