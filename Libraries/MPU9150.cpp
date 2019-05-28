@@ -381,6 +381,7 @@ void MPU9150::readAll(bool mag_Read)
 
     G[i] = float(g[i] - offsetG[i])*GYRO_SCALING_FACTOR + temp_Compensation(t);
     // G[i] = filter_gyro(lastG[i],G[i]);
+    delG[i] = G[i]-lastG[i];
     lastG[i] = G[i];
   }
   if(mag_Read)
@@ -409,9 +410,9 @@ float MPU9150::tilt_Compensate(float cosPitch,float cosRoll, float sinPitch, flo
   Yh = Yh*0.2f + magbuf[1]*0.8f; //smoothing out the Y readings
   magbuf[1] = Yh;
   
-  heading = RAD2DEG*atan2(Yh,Xh);
+  heading = RAD2DEG*atan2f(Yh,Xh);
 
-  del = RAD2DEG*acos(Xh/ (mag*my_cos(DEG2RAD*45.0f - roll) ) );
+  del = RAD2DEG*acosf(Xh/ (mag*my_cos(DEG2RAD*45.0f - roll) ) );
 
   mag_gain = spike(mag,49.0f); //49 -> 0.49 guass = earth's magnetic field strength in delhi, India. 
   
@@ -466,13 +467,13 @@ void MPU9150::compute_All()
   //PREDICTION STEP (ROLL AND PITCH FIRST)
   d_Yaw_Radians = (G[2]*dt*DEG2RAD); //change in yaw around the car's Z axis (this is not exactly the change in heading)
   roll  += (G[1] - gyro_Bias[1])*dt - pitch*d_Yaw_Radians; // the roll is calculated first because everything else is actually dependent on the roll. 
-  cosRoll = cos(roll*DEG2RAD); //precomputing them as they are used repetitively.
-  _sinRoll = -sin(roll*DEG2RAD);
+  cosRoll = cosf(roll*DEG2RAD); //precomputing them as they are used repetitively.
+  _sinRoll = -sinf(roll*DEG2RAD);
   //chaning the roll doesn't change the heading. Changing the pitch can change the heading.
   //YES there will be some error in pitch that will cause an error in the roll, that is exactly why I have a low pass filter applied to both pitch and roll for values between 2 and 5 degrees
   pitch += dt*(G[0]*cosRoll - G[2]*_sinRoll - gyro_Bias[0]) + roll*d_Yaw_Radians; //compensates for the effect of yaw and roll on pitch
-  cosPitch = cos(pitch*DEG2RAD);
-  _sinPitch = -sin(pitch*DEG2RAD);
+  cosPitch = cosf(pitch*DEG2RAD);
+  _sinPitch = -sinf(pitch*DEG2RAD);
 
   //if the car is going around a banked turn, then the change in heading is not the same as yawRate*dt. P.S: cos is an even function.
   mh += dt*(G[2]*cosRoll +G[0]*_sinRoll - gyro_Bias[2]); //compensates for pitch and roll of gyro(roll pitch compensation to the yaw).
@@ -490,7 +491,7 @@ void MPU9150::compute_All()
     innovation[0] = pitch; //dummy;
     float pitch_trust = trust*pitch_Error;
     trust_1 = (1 - pitch_trust);
-    pitch = trust_1*pitch + pitch_trust*RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
+    pitch = trust_1*pitch + pitch_trust*RAD2DEG*my_asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
     pitch_Error *= trust_1; //reduce the error everytime you make a correction
     innovation[0] -= pitch; //actual innovation
     gyro_Bias[0] += pitch_trust*innovation[0]*dt; //get bias
@@ -500,7 +501,7 @@ void MPU9150::compute_All()
     innovation[1] = roll;
     float roll_trust = trust*roll_Error;
     trust_1 = (1 - roll_trust);
-    roll  = trust_1*roll  - roll_trust*RAD2DEG*asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
+    roll  = trust_1*roll  - roll_trust*RAD2DEG*my_asin(A[0]*G_INVERSE); //using the accelerometer to correct the roll and pitch.
     roll_Error *= trust_1;
     innovation[1] -= roll;
     gyro_Bias[1] += roll_trust*innovation[1]*dt;
@@ -551,18 +552,19 @@ void MPU9150::compute_All()
   La = LPF(2,La);
   if(fabs(yawRate)>10.0f) //this check is to ensure a decent signal to noise ratio.
   {
-    float yawRadians = yawRate*DEG2RAD;//rate of rotation in radians
+    float yawRadians = yawRate*DEG2RAD;//rate of rotation in radians. OPTIMIZE
     float yawRadians2 = yawRadians*yawRadians; //square it 
     // radius = -La/yawRadians2;//estimating radius of curvature using R = Ax/omega^2
     // radius = 0.05f*radius + 0.95f*encoder_velocity[2]; //this is to make sure we don't have too much noise. encoder_velocity[2] is estimated roc from steering signal 
-    radius = encoder_velocity[2];
+    radius = encoder_velocity[2]; //this already considers the lateral acceleration so the above 2 lines are not important
     Ha -= (La*DIST_BW_ACCEL_AXLE/radius); //This is the correction for not having the accelerometer at the rear axle
     //TODO : insert method to trust A/w less when dw/dt is large (Steering angle changing because that's why we get errors in speed bruh)
-    // La += d_Yaw_Radians*(d_Yaw_Radians + 2*yawRadians)*radius; //correction for centrifugal force.
-    V_mes = -La/yawRadians; //measure velocity as V = A/w, since A = wr.w and wr is the speed.
+    // La -= d_Yaw_Radians*(d_Yaw_Radians + 2*yawRadians)*radius; //correction for centrifugal force.
+    V_mes = -(La + d_Yaw_Radians*(d_Yaw_Radians + 2*yawRadians)*radius)/yawRadians; //measure velocity as V = A/w, since A = wr.w and wr is the speed.
     V += Ha*dt; //propogate the state of the car through time.
-    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error. God I wish this was fixed too!
-    gain = V_Error/(CIRCULAR_VELOCITY_ERROR + V_Error); //CIRCULAR VELOCITY ERROR is fixed and is defined in the header.
+    V_Error += dt*fabs(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error. God I wish this was fixed too!
+    float mes_error = max(fabs(Ha),1.0f)*CIRCULAR_VELOCITY_ERROR/(min(fabs(yawRadians2),1.0f));
+    gain = V_Error/(mes_error + V_Error); //CIRCULAR VELOCITY ERROR is fixed and is defined in the header.
     V = (1.0f-gain)*V + gain*V_mes;//correction step
     V_Error *= (1.0f-gain);//adjusting the error in the velocity.
   }
@@ -570,7 +572,7 @@ void MPU9150::compute_All()
   {
     // Ha -= (La*DIST_BW_ACCEL_AXLE*1e-3);
     V += Ha*dt;//propogate the state through time.
-    V_Error += dt*(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error
+    V_Error += dt*fabs(ACCEL_VARIANCE*cosPitch + A[1]*_sinPitch*pitch_Error + 2.0f*GRAVITY*my_cos(2.0f*pitch*DEG2RAD)*pitch_Error);//expression for error
   }
   //FUSING MODEL's velocity with estimated velocity
   gain = V_Error/(encoder_velocity[1] + V_Error); //encoder_velocity[0] is error, [1] is actual speed
@@ -583,7 +585,7 @@ void MPU9150::get_Rotations(float omega[3])
 {
   omega[0] = DEG2RAD*G[0];
   omega[1] = DEG2RAD*G[1]; //pass the rotations in radians.
-  omega[2] = V; //pass the velocity too (why tho?)
+  omega[2] = V; //pass the velocity too
 }
 
 void MPU9150::Setup()//initialize the state of the marg.
@@ -592,9 +594,9 @@ void MPU9150::Setup()//initialize the state of the marg.
   readAll(1); //read accel,gyro,mag 
   delay(10);
   readAll(1);
-  pitch = RAD2DEG*asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
-  roll  = -RAD2DEG*asin(A[0]*G_INVERSE);   
-  mh = tilt_Compensate(cos(pitch*DEG2RAD),cos(roll*DEG2RAD),sin(pitch*DEG2RAD),sin(roll*DEG2RAD)); //find initial heading. Roll, pitch have to be in radians
+  pitch = RAD2DEG*my_asin(A[1]*G_INVERSE); //G_INVERSE = 1/9.8
+  roll  = -RAD2DEG*my_asin(A[0]*G_INVERSE);   
+  mh = tilt_Compensate(cosf(pitch*DEG2RAD),cosf(roll*DEG2RAD),sinf(pitch*DEG2RAD),sinf(roll*DEG2RAD)); //find initial heading. Roll, pitch have to be in radians
   yawRate = G[2]; //initial YawRate of the car.
   stamp = millis(); //get first time stamp.
   return;
@@ -623,7 +625,7 @@ float MPU9150::temp_Compensation(int16_t temp)
 
 void MPU9150::Velocity_Update(float &velocity,float VelError, float Accbias)
 {
-  V = LPF(3,velocity);
+  V = LPF(3,velocity);//is this needed?
   Sanity_Check(50,V);
   velocity = V; 
   V_Error = VelError;
