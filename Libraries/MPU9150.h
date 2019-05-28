@@ -573,7 +573,7 @@ class MPU9150 {
         float A[3],G[3],M[3],T; // noise and offset removed acceleration,gyration, magnetometer and temp
         int16_t a[3],g[3],m[3],t; //acceleration,gyration, magnetometer readings and temperature : RAW
         float gyro_Bias[3];
-        float lastG[3];//for filtering purposes.
+        float lastG[3],delG[3];//for filtering purposes.
         float xA[4][2],yA[4][2];//for accel low pass filter
         float CAC[2];
         float LPF(int i,float input);
