@@ -69,7 +69,9 @@ float depress(float a,float k);
 
 inline __always_inline float my_asin(float a)
 {
-  return a*(1+(float(0.5)*a*a*a*a)); //55us still thrice as fast.
+  float a2 = a*a;
+  return a*(float(0.9747049) + a2*(float(0.7860348) - a2*(float(4.1023116) - a2*(float(11.4273635) - a2*(float(13.479124) - a2*float(5.8769629) )))));
+  // return a*(1+(float(0.5)*a*a*a*a)); //55us still thrice as fast.
 }
 
 inline __always_inline float my_cos(float a)
@@ -77,7 +79,7 @@ inline __always_inline float my_cos(float a)
   int factor;
   if(a>M_2PI) //in case the values are outside [0,2pi]
   {
-    factor = int(a*M_2PI);
+    factor = int(a*M_2PI_INV);
     a -= float(factor*M_2PI); //rudimentary implementation of a "modulus"(%) operator for floating points.
   }
   if(a<0)
