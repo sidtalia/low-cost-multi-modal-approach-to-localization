@@ -8,6 +8,8 @@ fig = plt.figure()
 import tkinter as tk
 from tkinter import *
 
+# os.system("Lucy.py")
+
 BAUD = 230400
 com = com_handler()
 
@@ -86,6 +88,8 @@ def send_heartbeat(car):
 	global Tx_msg_len
 	message_id = np.array([START_ID,Tx_msg_len,Tx_ID,Tx_MODE],dtype = 'int16') 
 	com.send(message_id)
+	if(Tx_MODE == 0x07): #special case
+		set_standby()
 	# print("got here")
 
 def readSerial():
@@ -232,6 +236,14 @@ def readSerial():
 
 			if ID == ERROR_CODE:
 				print("An error occured. Debug it please")
+		else:
+			try:
+				async_data = np.load("data_share.npy")
+				if(async_data==1):
+					set_control_check()
+					np.save("data_share.npy",np.array([0]))
+			except:
+				pass
 
 
 
@@ -272,6 +284,10 @@ def set_666():
 def set_stop():
 	global Tx_MODE
 	Tx_MODE = 0x00
+
+def set_control_check():
+	global Tx_MODE
+	Tx_MODE = 0x07
 
 def mark():
 	global Tx_ID
@@ -355,6 +371,8 @@ class GCS():
         self.cruise_button.pack()
         self.ludicrous_button = tk.Button(self.frame, text = 'LUDICROUS', command = set_666)
         self.ludicrous_button.pack()
+        self.control_check_button = tk.Button(self.frame, text = 'CONTROL_CHECK', command = set_control_check)
+        self.control_check_button.pack()
         self.mark_button = tk.Button(self.frame, text = 'MARK', command = mark)
         self.mark_button.pack()
         self.stop_button = tk.Button(self.frame, text = 'STOP', command = set_stop)
