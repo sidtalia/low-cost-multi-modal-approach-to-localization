@@ -45,8 +45,8 @@ usage :
 	obj.updateOpticalFlow(data);//get that data baby
 */
 
-#define LPF_GAIN_OPFLOW (float) (1/64.65674116)
-#define C1_OPFLOW (float)0.9690674172
+#define LPF_GAIN_OPFLOW (float) (1/128.321336)
+#define C1_OPFLOW (float) 0.984414
 
 class OPFLOW
 {
