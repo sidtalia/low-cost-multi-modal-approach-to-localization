@@ -3,7 +3,7 @@ import numpy as np
 import math as meth
 from scipy.ndimage.filters import gaussian_filter
 
-data = np.load('LUCIFER_log_2019_4_14_10_24.npy')#10,8,42,#23,8,35
+data = np.load('LUCIFER_log_2019_5_28_8_20.npy')#10,8,42,#23,8,35
 # data1 = np.load('LUCIFER_log_gps_2019_2_28_21_54.npy')
 
 
@@ -21,12 +21,13 @@ optical = data[:,8]
 op_shutter_speed = data[:,9]
 op_SQ = data[:,10]
 op_max_pix = data[:,11]
+Hdop = data[:,12]
 exec_time = data[:,13]
 # print(exec_time)
 t = np.arange(0,len(speed)/10,0.1)
-speed = gaussian_filter(speed,sigma=2)
+# speed = gaussian_filter(speed,sigma=2)
 error = np.fabs(speed-optical)
-
+# print(np.var(error[:250]))
 # lat = data[int(len(data)/2):]
 # lat = lat[:-40]
 # lon = data[:int(len(data)/2)]
@@ -67,7 +68,7 @@ def fit(x,c):
 	return c[0]*x**3 + c[1]*x**2 + c[2]*x + c[3]
 
 # # position plot : 
-# plt.plot(111392*(lon[:] - lon[0]),111392*(lat[:]-lat[0]), label='filtered')
+# plt.plot((lon[:] - lon[0]),(lat[:]-lat[0]), label='filtered')
 # plt.xlabel('X (m)')
 # plt.ylabel('Y (m)')
 # plt.plot(111392*(gps_lon - gps_lon[0] ),111392*(gps_lat - gps_lat[0]), label='raw gps')
@@ -91,7 +92,7 @@ print(dist_vel,dist_cord,dist_gps)
 # exec_time -= 1535
 # exec_time = exec_time/(1810-1535)
 # # # print(exec_time)
-# speed = np.array([1,4,6,8.2,10.4,12.2])
+# speed = np.array([1,4,6.1,8.3,10.4,12])
 # plt.scatter(exec_time,speed)
 # c = np.polyfit(exec_time,speed,3)
 # t_ = np.arange(0,1.0,0.01)
@@ -113,15 +114,18 @@ print(dist_vel,dist_cord,dist_gps)
 # print(len(t))
 # speed = gaussian_filter(speed,sigma=2)
 # optical = gaussian_filter(optical,sigma=2)
-# plt.plot(t,speed,label='filtered speed')
-# plt.plot(t,optical,label='optical')
+# # plt.title('without correction')
+plt.plot(t,speed,label='filtered speed')
+# plt.plot(t,Hdop,label='Hdop')
+# plt.plot(t,gaussian_filter(op_SQ/20,sigma=1),label='SQ')
+plt.plot(t,optical,label='model')
 # plt.ylabel('speed in m/s')
 # plt.xlabel('time in seconds')
 # plt.plot(t,LPF(optical),label='LOW passed')
 
 # for optical flow testing :
 # op_SQ = gaussian_filter(op_SQ,sigma=10) 
-# plt.plot(t,op_SQ/10,label='SQ')
+plt.plot(t,op_SQ/10,label='SQ')
 # for finding variance : 
 # variance = np.zeros(50)
 # for i in range(50):
