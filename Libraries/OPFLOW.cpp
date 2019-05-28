@@ -12,7 +12,7 @@ OPFLOW::OPFLOW()
 
 void OPFLOW::caliberation(float height, float angle)//distance measured by a rangefinder, angle made by the object with the vertical
 {
-  float true_height = height/cos(angle*0.001745); //from degree to radians. when looking at a far away point, moving at the same speed, it appears that the point
+  float true_height = height/cosf(angle*0.001745); //from degree to radians. when looking at a far away point, moving at the same speed, it appears that the point
   //is moving slower than it should
   CALIBERATION = true_height/128.0f;//new caliberation.
 }
@@ -49,19 +49,13 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     {
       SQ = 10.0f; //sanity check
     }
-    V_Error = error_calc();
-    P_Error = V_Error; //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
-    // if(SQ>60)
-    // {
-    //   P_Error = CALIBERATION*(2560/SQ);//the smallest distance it can measure divided by surface Quality.
-    //                                     //more surface quality = more reliable least count.
-    //   V_Error = P_Error*LOOP_FREQUENCY; //least count/smallest time division      
-    // }
-    // else if(SQ<=60)
-    // {
-    //   P_Error = CALIBERATION*(256000/SQ); //some very large value that the optical flow sensor would never actually have.
-    //   V_Error = P_Error*LOOP_FREQUENCY;//ridiculous values to represent that optical flow is unreliable
-    // }
+    V_Error = fabs(error_calc());
+    P_Error = V_Error*dt; //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
+    if(SQ<70)
+    {
+      V_Error = 1e3;
+      P_Error = 1e3;
+    }
 
     X += omega[1]*ride_height*dt*0.1f; //the sign was flipped on 11/2/19 3:28pm
     X = LPF(0,X);
@@ -71,8 +65,8 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 	else if(motion & 0x10)  //buffer overflow
 	{
 		uint8_t surfaceQuality = 1;		
-    X = LPF(0,0);
-    Y = LPF(1,0);
+    X = LPF(0,X);
+    Y = LPF(1,Y);
     SQ = float(surfaceQuality);
 	  P_Error = 1e3; //some very large value that the optical flow sensor would never actually have.
     V_Error = 1e3;//ridiculous values to represent that optical flow is unreliable.
