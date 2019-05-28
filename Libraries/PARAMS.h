@@ -8,17 +8,18 @@
 #define ride_height (float) 0.052 //6.2cms height of the sensor.
 #define DIST_BW_ACCEL_AXLE (float) 0.225// distance between rear axle and accelerometer
 #define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
+#define OP_POS (float) DIST_BW_ACCEL_AXLE*0.6f
 #define DAMPING (float) 0.4f
 
 #define THROTTLE_OFFSET 1535
 #define THROTTLE_MAX 1810
 #define THROTTLE_DELTA 10
 #define THROTTLE_RANGE_INV (float) (1.0f/float(THROTTLE_MAX - THROTTLE_OFFSET))
-#define A0 (float) 5.675764
-#define A1 (float) -13.991810
-#define A2 (float) 20.391148
-#define A3 (float) -0.081350
-#define ROLL_RES (float) 0.9
+#define A0 (float) 0.943214474
+#define A1 (float) -7.71363682
+#define A2 (float) 18.7732828
+#define A3 (float) -0.00528010
+#define ROLL_RES (float) 2.0
 #define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
 #define MAX_LEARNING_SPEED (float) 3.0f
 #define MIN_LEARNING_SPEED (float) 0.5f
@@ -29,7 +30,7 @@
 #define MIN_FEEDBACK_FACTOR 0.7
 
 #define DECLINATION (float) -1.3f
-#define GPS_GLITCH_SPEED (float) 5.0f //max speed difference that will be tolerated between internal estimate and gps
+#define GPS_GLITCH_SPEED (float) 15.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
 #define MODE_STANDBY 0X01
@@ -38,6 +39,7 @@
 #define MODE_AUTO 0x04
 #define MODE_AUTO_LUDICROUS 0x05
 #define MODE_NO_GPS 0x06
+#define MODE_CONTROL_CHECK 0x07
 
 #define FIX_TIMEOUT 1000
 
