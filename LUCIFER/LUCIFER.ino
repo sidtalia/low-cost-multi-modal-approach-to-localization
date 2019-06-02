@@ -97,7 +97,6 @@ void setup()
     marg.setOffset(A,G,M,T,gain);
     gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT, marg.axis_gain); //send new found offsets to GCS
   }
-
   marg.Setup();
   
   gps.localizer();//get initial location
@@ -154,7 +153,7 @@ void loop()
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
 //  time_it = micros();
   gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
+                  opticalFlow.V_y, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
 //  benchmark = max(micros()-time_it,benchmark);
   if(gcs.get_Mode()!=255)
   {
@@ -180,6 +179,11 @@ void loop()
     {
       MODE = MODE_STANDBY;
     }
+  }
+
+  if(message == SET_ORIGIN_ID)
+  {
+    car.initialize(gps.longitude, gps.latitude, gps.Hdop, marg.mh, 0, marg.Ha);
   }
   
   if(message == CALIB_ID)//recalculate offsets
