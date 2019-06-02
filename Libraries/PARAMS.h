@@ -9,6 +9,7 @@
 #define DIST_BW_ACCEL_AXLE (float) 0.225// distance between rear axle and accelerometer
 #define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
 #define OP_POS (float) DIST_BW_ACCEL_AXLE*0.6f
+#define OP_FLOW_MAX_SPEED (float) 5.0
 #define DAMPING (float) 0.4f
 
 #define THROTTLE_OFFSET 1535
@@ -21,7 +22,7 @@
 #define A3 (float) -0.00528010
 #define ROLL_RES (float) 2.0
 #define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
-#define MAX_LEARNING_SPEED (float) 3.0f
+#define MAX_LEARNING_SPEED OP_FLOW_MAX_SPEED
 #define MIN_LEARNING_SPEED (float) 0.5f
 #define MAX_GAIN (float) 0.1f
 #define DECAY_TIME (float) 10.0f //time in seconds after which car's model becomes practically useless
@@ -63,6 +64,7 @@
 #define CLEAR_ID 0x0008
 #define MARK_ID 0x0009
 #define CALIB_ID 0x000A
+#define SET_ORIGIN_ID 0x000B
 
 #define GYRO_CAL 0x10
 #define ACCEL_CAL 0x20
