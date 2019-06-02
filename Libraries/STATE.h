@@ -150,7 +150,7 @@ public :
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
-		if(Velocity>3.0f) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
+		if(Velocity>OP_FLOW_MAX_SPEED) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
 		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
 			OF_V_Error *= 1e3;
 			OF_P_Error = OF_V_Error;
