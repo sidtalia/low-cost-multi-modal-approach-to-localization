@@ -65,4 +65,40 @@ void read_memory(int j, int16_t offA[3], int16_t offG[3], int16_t offM[3], int16
 	offT = int16_t(T);
 }
 
+void store_config(int16_t param[20])
+{
+	uint16_t config;
+	uint16_t add = 52; //this is the offset to prevent memory overlap between imu offsets and config stuff.
+	for(int i = 0;i<20;i++)
+	{
+		config = uint16_t(param[i]);
+		EEPROM.write(add,config);
+		add += 2;
+	}
+}
+
+bool check_config()
+{
+	uint16_t data[2];
+	EEPROM.read(52,&data[0]);
+	EEPROM.read(53,&data[1]);
+	if(data[0]!=data[1])
+	{
+		return 1;
+	}
+	return 0;
+}
+
+void read_config(int16_t param[20])
+{
+	uint16_t config;
+	uint16_t add = 52;
+	for(int i = 0;i<20;i++)
+	{
+		EEPROM.read(add, &config);
+		param[i] = int16_t(config);
+		add += 2;
+	}
+}
+
 #endif
