@@ -51,31 +51,34 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     }
     V_Error = fabs(error_calc());
     P_Error = V_Error*dt; //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
-    if(SQ<70)
-    {
-      V_Error = 1e3;
-      P_Error = 1e3;
-    }
 
     X += omega[1]*ride_height*dt*0.1f; //the sign was flipped on 11/2/19 3:28pm
-    X = LPF(0,X);
     Y -= omega[0]*ride_height*dt*0.1f; //compensation for rotations ya know. this sign was also flipped. please run a test.
-    Y = LPF(1,Y);
   } 
 	else if(motion & 0x10)  //buffer overflow
 	{
 		uint8_t surfaceQuality = 1;		
-    X = LPF(0,X);
-    Y = LPF(1,Y);
     SQ = float(surfaceQuality);
 	  P_Error = 1e3; //some very large value that the optical flow sensor would never actually have.
     V_Error = 1e3;//ridiculous values to represent that optical flow is unreliable.
   }
 
+  X = LPF(0,X);
+  Y = LPF(1,Y);
   V_x = X*LOOP_FREQUENCY;
-  V_x = LPF(2,V_x);
   V_y = Y*LOOP_FREQUENCY;
-  V_y = LPF(3,V_y);  
+  if(SQ<60 || omega[2]>OP_FLOW_MAX_SPEED)
+  {
+    V_y = LPF(3,omega[2]);
+    V_Error = 1e3;
+    P_Error = 1e3;
+  }
+  else
+  {
+    V_y = LPF(3,V_y); 
+  }
+  V_x = LPF(2,V_x);
+   
 //sensor health check.
   // TODO : insert (in the main code) a method to get the sensor health for all sensors (please?)
   health += fabs(V_y-omega[2])>=1.0f? 1:-1; //increase health for every glitch that we get, decrease it for every nice reading
