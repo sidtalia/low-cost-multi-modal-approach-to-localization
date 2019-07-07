@@ -257,7 +257,7 @@ def readSerial():
 
 
 DISPLAY_WIDTH  = 800
-DISPLAY_HEIGHT = 600
+DISPLAY_HEIGHT = 800
 
 BACKGROUND_COLOR = 'white'
 
@@ -288,6 +288,10 @@ def set_stop():
 def set_control_check():
 	global Tx_MODE
 	Tx_MODE = 0x07
+
+def set_origin():
+	global Tx_ID
+	Tx_ID = 0x000B
 
 def mark():
 	global Tx_ID
@@ -327,7 +331,6 @@ class GCS():
         # self.canvas.pack()
         self.root.after(100, readSerial)
         
-
         self.latitude = tk.Label(self.frame,text='')
         self.latitude.pack()
         self.longitude = tk.Label(self.frame,text='')
@@ -375,6 +378,8 @@ class GCS():
         self.control_check_button.pack()
         self.mark_button = tk.Button(self.frame, text = 'MARK', command = mark)
         self.mark_button.pack()
+        self.mark_button = tk.Button(self.frame, text = 'SET ORIGIN', command = set_origin)
+        self.mark_button.pack()
         self.stop_button = tk.Button(self.frame, text = 'STOP', command = set_stop)
         self.stop_button.pack()
         self.record_button = tk.Button(self.frame, text = 'RECORD', command = record)
@@ -393,3 +398,7 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
+
+
+
+
