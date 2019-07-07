@@ -153,7 +153,7 @@ void loop()
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
 //  time_it = micros();
   gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  opticalFlow.V_y, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
+                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
 //  benchmark = max(micros()-time_it,benchmark);
   if(gcs.get_Mode()!=255)
   {
