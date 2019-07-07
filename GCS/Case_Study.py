@@ -3,9 +3,9 @@ import numpy as np
 import math as meth
 from scipy.ndimage.filters import gaussian_filter
 
-data = np.load('LUCIFER_log_2019_5_28_8_20.npy')#10,8,42,#23,8,35
+data = np.load('LUCIFER_log_2019_7_7_8_50.npy')#10,8,42,#23,8,35
 # data1 = np.load('LUCIFER_log_gps_2019_2_28_21_54.npy')
-
+# plt.axis("equal")
 
 coords = data[:,0:4]
 filtered = coords[:,0:2]
@@ -27,6 +27,8 @@ exec_time = data[:,13]
 t = np.arange(0,len(speed)/10,0.1)
 # speed = gaussian_filter(speed,sigma=2)
 error = np.fabs(speed-optical)
+# ratio = np.mean(speed[400:600]/optical[400:600])
+# print(ratio)
 # print(np.var(error[:250]))
 # lat = data[int(len(data)/2):]
 # lat = lat[:-40]
@@ -68,10 +70,13 @@ def fit(x,c):
 	return c[0]*x**3 + c[1]*x**2 + c[2]*x + c[3]
 
 # # position plot : 
-# plt.plot((lon[:] - lon[0]),(lat[:]-lat[0]), label='filtered')
-# plt.xlabel('X (m)')
-# plt.ylabel('Y (m)')
-# plt.plot(111392*(gps_lon - gps_lon[0] ),111392*(gps_lat - gps_lat[0]), label='raw gps')
+plt.plot((lon[:] - lon[0]),(lat[:]-lat[0]), label='filtered')
+plt.xlabel('X (m)')
+plt.ylabel('Y (m)')
+plt.plot(111392*(gps_lon - gps_lon[0] ),111392*(gps_lat - gps_lat[0]), label='raw gps')
+
+
+
 dist_cord = 0
 dist_vel = 0
 dist_gps = 0
@@ -115,17 +120,20 @@ print(dist_vel,dist_cord,dist_gps)
 # speed = gaussian_filter(speed,sigma=2)
 # optical = gaussian_filter(optical,sigma=2)
 # # plt.title('without correction')
-plt.plot(t,speed,label='filtered speed')
+# plt.plot(t,speed,label='filtered speed')
+# plt.plot(t,op_SQ/20,label='SQ')
+# plt.plot(t,optical,label='OF_X')
+# plt.plot(t,gaussian_filter(op_SQ,sigma=5),label='dS_x')
 # plt.plot(t,Hdop,label='Hdop')
 # plt.plot(t,gaussian_filter(op_SQ/20,sigma=1),label='SQ')
-plt.plot(t,optical,label='model')
+
 # plt.ylabel('speed in m/s')
 # plt.xlabel('time in seconds')
 # plt.plot(t,LPF(optical),label='LOW passed')
 
 # for optical flow testing :
 # op_SQ = gaussian_filter(op_SQ,sigma=10) 
-plt.plot(t,op_SQ/10,label='SQ')
+
 # for finding variance : 
 # variance = np.zeros(50)
 # for i in range(50):
