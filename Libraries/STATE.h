@@ -149,6 +149,14 @@ public :
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
+		if(OF_V_Error>1) //if optical flow sensor is out, use the model velocity regardless of speed. 
+		{
+			model[1] = max(model[0]*0.14f,0.14f);
+		}
+		VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is error, [1] is actual speed
+		Velocity = (1.0f - VelGain)*Velocity + VelGain*model[0]; //correction step
+		VelError *= (1.0f - VelGain); 
+
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
 		if(Velocity>OP_FLOW_MAX_SPEED) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
 		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
@@ -171,8 +179,8 @@ public :
 		//distance moved in last cycle
 		
 		dS_y = Velocity*dt;// + 0.5*Acceleration*dt*dt;//is this formula correct? hmm..(does it matter? seeing that the first term is 2 orders of magnitude larger than the second one under most circumstances?)
-		Xacc = X + dS_y*cosmh; //estimated X position.
-		Yacc = Y + dS_y*sinmh; //estimated Y position
+		Xacc = X + dS_y*cosmh;//estimated X position.
+		Yacc = Y + dS_y*sinmh;//estimated Y position
 		dSError = VelError*dt;//error in instantaneous distance travelled
 		dTheta = mh_Error*DEG2RAD;//error in heading
 
@@ -181,10 +189,8 @@ public :
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
-		tan_phi = OP_POS/model[2];
-		dS_x = -OF_Y*tan_phi; //this is to account for the fact that the car is not a point object.
-		X += cosmh*OF_Y + sinmh*(OF_X - dS_x); // the optical flow can measure movement along the car's X and Y directions.
-		Y += sinmh*OF_Y - cosmh*(OF_X - dS_x); //
+		X += cosmh*OF_Y; // the optical flow can measure movement along the car's X and Y directions.
+		Y += sinmh*OF_Y; //
 
 		PosGain_X = PosError_X/(PosError_X + OF_P_Error); //optical flow error is assumed to be circular
 		PosGain_Y = PosError_Y/(PosError_Y + OF_P_Error);
@@ -193,24 +199,9 @@ public :
 		PosError_X *= (1-PosGain_X);//and as you can see, the number of lines I would have to write for 3 dimensional fusion would be even greater than this,
 		PosError_Y *= (1-PosGain_Y);// which makes matrix multiplication methods look more attractive.
 		
+		X += sinmh*OF_X; // the body frame X axis movement has no other source of information, so therefore there can be no filtering for it.
+		Y -= cosmh*OF_X;
 
-
-		// if(position_reset && Hdop < GPS_HDOP_LIM && tick)//position reset condition is checked before using gps data to prevent jumps in position when gps error drops below 2.5m
-		// {
-		// 	lastLat = lat;
-		// 	lastLon = lon;
-		// 	last_X = past_X = X - Velocity*GPS_UPDATE_TIME*cosmh; //Ideally one should use a buffer for this, but since I don't have an abundance of memory, I will have to make do.
-		// 	last_Y = past_Y = Y - Velocity*GPS_UPDATE_TIME*sinmh;
-		// 	past_Velocity = last_Velocity = Velocity; //initialize the "past_velocity"
-		// 	past_VelError = VelError;
-		// 	past_PosError_X = PosError_X;
-		// 	past_PosError_Y = PosError_Y;
-
-		// 	iLat = lat - double(past_Y*METER2DEG);//lat lon reported by gps matches with the past value of position.
-		// 	iLon = lon - double(past_X*METER2DEG);
-
-		// 	position_reset = false;//prevent this code block from being re-executed
-		// }
 		//POSITION ESTIMATION USING GPS + ESTIMATED POSITION FROM PREVIOUS METHODS
 		if(tick && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
 		{	/*
@@ -230,7 +221,7 @@ public :
 			*/
 			float temp_X = gps_X; //last gps coordinates. edited on 5/5/19. gps_X
 			float temp_Y = gps_Y; 
-			Hdop *= Hdop*Hdop;
+			// Hdop *= Hdop*Hdop;
 			gps_X = last_X = float((lon - iLon)*DEG2METER);// + last_X;//getting the last gps position 
 			gps_Y = last_Y = float((lat - iLat)*DEG2METER);// + last_Y; 
 
