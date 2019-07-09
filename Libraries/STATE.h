@@ -151,10 +151,10 @@ public :
 		//CORRECTING VELOCITY FIRST
 		if(OF_V_Error>1) //if optical flow sensor is out, use the model velocity regardless of speed. 
 		{
-			model[1] = max(model[0]*0.14f,0.14f);
+			model[1] = max(model[0],3.0f);
 		}
-		VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is error, [1] is actual speed
-		Velocity = (1.0f - VelGain)*Velocity + VelGain*model[0]; //correction step
+		VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is speed, [1] is error
+		Vacc = (1.0f - VelGain)*Vacc + VelGain*model[0]; //correction step correcting the velocity from the accelerometer section
 		VelError *= (1.0f - VelGain); 
 
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
