@@ -129,11 +129,11 @@ class controller
 		array[2] = roc;
 	}
 
-	void feedback(float est_speed,float est_error)
+	void feedback(float est_speed,float est_error,float OF_V_Error)
 	{
 		ground_Speed = est_speed; //get external speed : is injected into the LPF model when the car is under retardation
 		Process_noise += DECAY_RATE;
-		if(est_speed>MAX_LEARNING_SPEED or est_speed < MIN_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>speed)
+		if(est_speed>MAX_LEARNING_SPEED or est_speed < MIN_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>speed or OF_V_Error>1)//making sure the car doesn't learn when i need the model to provide an estimate
 		{
 			IsLearning = false;
 			return;
@@ -146,6 +146,18 @@ class controller
 		feedback_factor += (speed - est_speed)*gain*LEARNING_RATE; //note that load has an inverse relationship with the speed.
 		feedback_factor = check(fabs(feedback_factor),MIN_FEEDBACK_FACTOR); //prevent values smaller than 0.7
 		return;
+	}
+
+	float throttle_to_speed(float x)
+	{
+		return A0*pow(x,3) + A1*pow(x,2) + A2*x + A3;
+	}
+
+	float speed_to_throttle(float x)
+	{
+		float output = B0*pow(x,3) + B1*pow(x,2) + B2*x + B3;
+		output = THROTTLE_RANGE*output + THROTTLE_OFFSET;
+		return output;
 	}
 
 	void calc_speed()
@@ -193,7 +205,7 @@ class controller
 				throttle = THROTTLE_MAX;
 			}
 			float dummy = (throttle - THROTTLE_OFFSET)*THROTTLE_RANGE_INV;
-			speed = A0*pow(dummy,3) + A1*pow(dummy,2) + A2*dummy + A3;
+			speed = throttle_to_speed(dummy);
 			float load = fabs(La*COG/roc);
 			speed /= (feedback_factor + load/ROLL_RES);
 			speed = LPF(0,speed);
@@ -206,6 +218,15 @@ class controller
 			IsLearning|IsOversteering ? speed_Error = 1e6 : speed_Error = fabs(max(speed,3.0f));// max(1e2*fabs(speed - dummy),1.0f);//error is proportional to the target - estimated speed by Low pass filter model.
 		}//changes made on 5/5/19
 	}
+
+	float input_to_speed(float x)
+	{
+		float y = (x - THROTTLE_OFFSET)*THROTTLE_RANGE_INV;
+		if(y>=0)
+			return 6*y;
+		else
+			return 0;
+		}
 
 	//the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
 	void driver(float C[2], float braking_distance, float V, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
@@ -244,6 +265,46 @@ class controller
 
 		if(MODE == MODE_PARTIAL)
 		{
+			// V_target = input_to_speed(inputs[2]);
+			// V_error = V_target - V;
+			// if(V_error>=0)//Required velocity is greater than the current velocity
+			// {
+			// 	if(Ay>0)//if we are already speeding up
+			// 	{
+			// 		backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
+			// 		if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
+			// 		{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
+			// 			backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
+			// 		}
+			// 	}
+			// 	else
+			// 	{
+			// 		backoff = 0;
+			// 	}
+			// 	throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff); //open loop + closed loop control for reducing V_error at a faster rate.
+			// }
+			// if(V_error<0)//required velocity is less than current velocity.
+			// {
+			// 	if(Ay<0) //if we are already slowing down
+			// 	{
+			// 		backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
+			// 		if(backoff<0)
+			// 		{
+			// 			backoff = 0;
+			// 		}
+			// 	}
+			// 	else
+			// 	{
+			// 		backoff = 0;
+			// 	}
+			// 	//TODO : improve this on the basis of how much braking distance we got left
+			// 	deceleration = V_error - Ay;//required deceleration - measured deceleration #TBD 
+			// 	if(deceleration<-10) //prevent reset windup
+			// 	{
+			// 		deceleration = -10;
+			// 	}
+			// 	throttle = limiter(THROTTLENULL + BRAKE_GAIN*deceleration + backoff);
+			// }
 			backoff = 0;//20*(resultant - MAX_ACCELERATION);
 			if(backoff<0)
 				backoff = 0;
@@ -251,7 +312,6 @@ class controller
 				throttle = inputs[2] - backoff;
 			else
 				throttle = inputs[2] + backoff;
-
 			steer = inputs[0] + yaw_correction(yaw_Compensation) ;
 			
 			calc_speed();
