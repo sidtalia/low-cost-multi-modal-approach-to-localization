@@ -1,0 +1,228 @@
+<?xml version="1.0"?> 
+<robot name="dlive" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find dlive_description)/urdf/dlive_macros_low_poly.xacro" />
+  <xacro:include filename="$(find dlive_description)/urdf/dlive.gazebo" />
+  <xacro:property name="ImuSize" value="0.05"/>
+  <xacro:property name="ImuMass" value="0.1"/>
+
+  <!--link name="left_camera_frame">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="$(find dlive_description)/meshes/zed.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="$(find dlive_description)/meshes/zed.dae"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <xacro:cuboid_inertia mass="0.1" length="0.1" width="0.1" height="0.1"/>
+    </inertial>
+  </link-->
+ 
+  <link name="imu_link">
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${ImuSize} ${ImuSize} ${ImuSize}"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${ImuSize} ${ImuSize} ${ImuSize}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+
+    <inertial>
+      <mass value="${ImuMass}" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <box_inertia m="${ImuMass}" x="${ImuSize}" y="${ImuSize}" z="${ImuSize}" />
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+    </inertial>
+  </link>
+
+
+  <link name="base_link"/>
+
+  <link name="base_link_sub"/>
+  <link name="chassis">
+    
+    <visual>
+      <xacro:chassis_geometry/>
+    </visual>
+    <inertial>
+      <xacro:chassis_inertial_params />
+    </inertial>
+  </link>
+
+  <link name="left_front_wheel">
+    <visual>
+      <xacro:left_front_wheel/>
+    </visual>
+    <inertial>
+      <xacro:wheel_inertial_params />
+    </inertial>
+    <collision>
+      <xacro:wheel_collision/>
+    </collision>
+  </link>
+
+  <link name="right_front_wheel">
+    <visual>
+      <xacro:right_front_wheel/>
+    </visual>
+    <inertial>
+      <xacro:wheel_inertial_params />
+    </inertial>
+    <collision>
+      <xacro:wheel_collision/>
+    </collision>
+  </link>
+
+  <link name="left_rear_wheel">
+    <visual>
+      <xacro:left_rear_wheel/>
+    </visual>
+    <inertial>
+      <xacro:wheel_inertial_params />
+    </inertial>
+    <collision>
+      <xacro:wheel_collision/>
+    </collision>
+  </link>
+
+  <link name="right_rear_wheel">
+    <visual>
+      <xacro:right_rear_wheel/>
+    </visual>
+    <inertial>
+      <xacro:wheel_inertial_params />
+    </inertial>
+    <collision>
+      <xacro:wheel_collision/>
+    </collision>
+  </link>
+
+  <link name="exterior">
+    <visual>
+      <xacro:exterior />
+    </visual>
+    <inertial>
+      <xacro:exterior_inertial_params />
+    </inertial>
+    <collision>
+      <xacro:exterior_collision />
+    </collision>
+  </link>
+
+  <link name="left_steering_hinge">
+    <visual>
+      <xacro:left_steering_hinge/>
+    </visual>
+    <inertial>
+      <xacro:steering_hinge_inertial_params />
+    </inertial>
+  </link>
+
+  <link name="right_steering_hinge">
+    <visual>
+      <xacro:right_steering_hinge/>
+    </visual>
+    <inertial>
+      <xacro:steering_hinge_inertial_params />
+    </inertial>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 1.57079"/>
+    <parent link="base_link"/>
+    <child link="base_link_sub"/>
+  </joint>
+
+  <joint name="imu_joint" type="fixed">
+    <origin xyz="0 0 2.0" rpy="0 0 0"/>
+    <parent link="base_link_sub"/>
+    <child link="imu_link"/>
+  </joint>
+
+  <joint name="left_front_wheel_joint" type="continuous">
+    <parent link="left_steering_hinge" />
+    <child link="left_front_wheel" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <xacro:wheel_transmission name="left_front_wheel" />
+
+  <joint name="right_front_wheel_joint" type="continuous">
+    <parent link="right_steering_hinge" />
+    <child link="right_front_wheel" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <xacro:wheel_transmission name="right_front_wheel" />
+
+  <joint name="left_rear_wheel_joint" type="continuous">
+    <parent link="base_link_sub" />
+    <child link="left_rear_wheel" />
+    <origin xyz="-0.67348 1.0 0.266932" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <xacro:wheel_transmission name="left_rear_wheel" />
+
+  <joint name="right_rear_wheel_joint" type="continuous">
+    <parent link="base_link_sub" />
+    <child link="right_rear_wheel" />
+    <origin xyz="0.67348 1.0 0.266932" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+  </joint>
+  <xacro:wheel_transmission name="right_rear_wheel" />
+
+  <joint name="exterior_joint" type="fixed">
+    <parent link="base_link_sub" />
+    <child link="exterior" />
+    <origin xyz="0 0 0.196" rpy="0 0 0" />
+  </joint>
+
+  <joint name="chassis_joint" type="fixed">
+    <parent link="base_link_sub" />
+    <child link="chassis" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </joint>
+
+  <!--joint name="camera_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="left_camera_frame" />
+    <origin xyz="0 -0.96 1.11" rpy="0 0 -1.57" />
+  </joint-->
+
+  <!-- Ackermann Joints -->
+  <joint name="right_steering_hinge_joint" type="revolute">
+    <parent link="base_link_sub" />
+    <child link="left_steering_hinge" />
+    <origin xyz="-0.67348 -1.0 0.266932" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit upper="0.785398" lower="-0.785398" effort="1000.0" velocity="1"/>
+  </joint>
+  <xacro:steering_hinge_transmission name="left_steering_hinge" />
+
+  <joint name="left_steering_hinge_joint" type="revolute">
+    <parent link="base_link_sub" />
+    <child link="right_steering_hinge" />
+    <origin xyz="0.67348 -1.0 0.266932" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit upper="0.785398" lower="-0.785398" effort="1000.0" velocity="1"/>
+  </joint>
+  <xacro:steering_hinge_transmission name="right_steering_hinge" />
+
+  <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro"/>
+  <VLP-16 parent="base_link_sub" name="velodyne" topic="/points2" hz="100" samples="440" gpu="true">
+    <origin xyz="0 0.573949 1.7" rpy="0 0 -1.57" />
+  </VLP-16>
+</robot>
