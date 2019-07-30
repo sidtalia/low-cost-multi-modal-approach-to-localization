@@ -25,6 +25,7 @@ public :
 	float xA[2][4],yA[2][4];
 	float GPS_Velocity,GPS_SAcc; //velocity from gps
 	float last_cosmh,last_sinmh;
+	float declination;
 
     float LPF(int i,float x)
 	{
@@ -58,12 +59,22 @@ public :
 		last_sinmh = sinf(head*DEG2RAD);
 		Velocity = past_Velocity = last_Velocity = Vel;
 		Acceleration = acc; //initially acc, vel should be close to 0
+		declination = 0;
 	}
 
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
-	void state_update(double lon, double lat, bool tick,double Hdop, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
+	void state_update(double lon, double lat, bool tick,double Hdop, float GPS_Velocity, float GPS_SAcc, float gHead, float headAcc, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
 						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error,float model[3])
 	{
+		// mh += declination;// COMMENT
+		// if(mh >= M_2PI_DEG) // the mh must be within [0.0,360.0]
+		// {
+		// 	mh -= M_2PI_DEG;
+		// }
+		// if(mh < 0.0f)
+		// {
+		// 	mh += M_2PI_DEG;
+		// }
 		float cosmh = cosf(mh*DEG2RAD); //OPTIMIZE
 		float sinmh = sinf(mh*DEG2RAD);
 		float Xacc,Yacc,dS_y,dS_x,dSError,dTheta,tan_phi;
@@ -71,6 +82,8 @@ public :
 		float separation;
 		float shift_X=0,shift_Y=0,innovation=0; // added on 5/5/19
 		heading = mh;
+		float head_Innovation = 0;
+		float head_gain = 0;
 		VelError = VError; //VelError is the velocity erro in the "state." I'm transferring the velocity error from outside to the object member
 		/*
 		OVERVIEW:
@@ -149,7 +162,7 @@ public :
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
-		if(OF_V_Error>1) //if optical flow sensor is out, use the model velocity regardless of speed. 
+		if(OF_V_Error>OP_FLOW_MAX_V_ERROR) //if optical flow sensor is out, use the model velocity regardless of speed. 
 		{
 			model[1] = max(model[0],3.0f);
 		}
@@ -170,7 +183,7 @@ public :
 		VelError *= (1-VelGain);//reduce the error in the estimate.
 		//find the difference between prediction and measurement.
 		//this bias is for "tuning" the accelerometer for times when the optical flow isn't reliable
-		if(OF_V_Error<1)
+		if(OF_V_Error<10)
 		{
 			AccBias += (Vacc - OF_V_Y)*VelGain*dt*dt;//keep adjusting bias while optical flow is trustworthy. dt is just there to make the adjustments smaller
 		}
@@ -241,11 +254,8 @@ public :
 			last_X = PosGain_X*last_X + (1-PosGain_X)*past_X; // past_X,past_Y are the past Estimates for position 
 			last_Y = PosGain_Y*last_Y + (1-PosGain_Y)*past_Y; // last_X,last_Y are the past corrected position 
 															  //(I didn't create separate variables for measurement because it seemed like a waste of memory)
-			GPS_Velocity = distancecalcy(gps_X,temp_X,gps_Y,temp_Y,0)*GPS_UPDATE_RATE;//calculating velocity from gps coordinates// changed on 5/5/19 to get velocity from corrected position.
 			if(GPS_Velocity > MIN_GPS_SPEED && !position_reset)//explanation given in the codeblock itself.
 			{
-				//TODO : take component of gps velocity along the nose of the car.
-				GPS_SAcc = Hdop*GPS_UPDATE_RATE; //Velocity variance for gps readings was found to be similar to the hAcc readings.
 				//the velocity error is the average of the old position estimate error and the new position estimate error multiplied by the update rate. 
 				VelGain = (past_VelError/(past_VelError + GPS_SAcc)); //find the gain to correct the past estimate
 				last_Velocity = VelGain*GPS_Velocity + (1-VelGain)*past_Velocity;//correct the last velocity.
@@ -263,12 +273,19 @@ public :
 				//this is the "magical thing" about kfs that the kf boys(including myself) nut to before we sleep. 
 				//Not only is it correcting the position estimate(which is what you initially wanted), it is also correcting the velocity estimate by
 				//exploiting the relation between speed and position. Now the problem here is that if you're travelling at really slow speeds 
-				//by gps standards, ie, less than 5m/s, this correction might actually be counter-productive.
-				//consider the case of the car making a U turn of radius 1m at a speed of 2 m/s. this is well within the car's capabilities.
-				// However, the above calculations for speed use a straight line approximation which fails quite rapidly as you start considering low speed 
-				//cases. To solve this, you need to consider the change in the heading of the car, which further relies on the assumption that the 
-				//turning radius doesn't change which also fails quite rapidly at slow speeds. So you can see why there is an if condition to prevent us from 
-				//incorrectly exploiting the relationship between speed and position. The relations only hold when you're travelling fairly fast.
+				//by gps standards, i.e., less than 3m/s, this correction might actually be counter-productive.
+				
+				// head_Innovation = heading - gHead;
+				// if(head_Innovation >= M_PI_DEG) // the head_Innovation must be within [0.0,360.0]
+				// {
+				// 	head_Innovation -= M_2PI_DEG;
+				// }
+				// if(head_Innovation <= -M_PI_DEG)
+				// {
+				// 	head_Innovation += M_2PI_DEG;
+				// }
+				// head_gain = mh_Error/(mh_Error + headAcc);
+				// declination -= head_Innovation*head_gain;
 			}
 
 			PosError_X *= (1 - PosGain_X); //reduce the position error after each correction from gps.
