@@ -40,9 +40,22 @@ static inline __always_inline float fast_sqrt(float x)//inversion of fast invers
   y  = y * ( threehalfs - ( x2 * y * y ) );   // 1st iteration
 //  y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
 
-  return float(1/y);
+  return float(1/y); //inversion of fast inverse square root. :P
 }
  
+static inline __always_inline float signum(float x)
+{
+  if(x>0)
+  {
+    return 1;
+  }
+  if(x<0)
+  {
+    return -1;
+  }
+  return 0;
+}
+
 inline __always_inline float distancecalcy(float y1,float y2,float x1,float x2,int i)
 {
   float delX = (x2-x1);
@@ -51,7 +64,9 @@ inline __always_inline float distancecalcy(float y1,float y2,float x1,float x2,i
   delY *= delY;
   if(i==1)
   {
-    return  DEG2METER*fast_sqrt(delX + delY);   //distance between 2 points
+    delX *= DEG2METER;
+    delY *= DEG2METER;
+    return  fast_sqrt(delX + delY);   //distance between 2 points
   }
   else
   {
