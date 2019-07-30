@@ -1,3 +1,4 @@
+
 //You might observe some inconsistency between tabs and spaces between arduino code and the header file code.
 //If that is a problem for you then you are free to edit the code yourself. I don't have the time to be concerned 
 //with formatting as long as the code remains understandable.
@@ -11,7 +12,7 @@
 //and re-initialization processes (say for example the MPU is somehow shut-off by chance. it takes about 470 us to re-initialize it).
 #include"MPU9150.h"
 #include"OPFLOW.h"
-#include"GPS.h"
+#include"GPS_NAV_PVT.h"
 #include"MEMORY.h"
 #include"INOUT.h"
 #include"SIDMATH.h"
@@ -37,6 +38,7 @@ int16_t num_waypoints=0;
 int16_t point = 0;
 int16_t sentinel = 0;
 bool circuit = false; //
+bool car_ready = false;
 float dest_X,dest_Y,slope;
 
 coordinates *c;
@@ -104,7 +106,7 @@ void setup()
   do //wait till we get a GPS fix
   {
     gcs.Send_State(MODE, gps.latitude, gps.longitude,gps.latitude,gps.longitude, marg.V, marg.mh, marg.pitch, marg.roll, marg.Ha, opticalFlow.P_Error, 0, marg.mh_Error, marg.V_Error, 0,gps.Hdop);
-    if(gps.Hdop>100000)//if gps is unavailable, skip.
+    if(gps.Hdop>1000)//if gps is unavailable, skip.
     {
       delay(100);
       break;
@@ -129,39 +131,66 @@ void setup()
 
 unsigned long timer,time_it;
 unsigned long T,benchmark;
+bool reflect_WP = false;
+float dummy;
+
+void clear_wp()
+{
+  num_waypoints = 0;
+  point = 0;
+  sentinel = 0;
+  circuit = 0;
+  car_ready = false;
+  delete[] c; //clear all waypoints
+}
 
 void loop() 
 {
   timer = micros();//this is to ensure that the cycle time remains constant at 2500us. How do I know it's not exceeding that limit? 
                     //I unit test each of the functions to check how much time they take to execute.
-  //get sensor data
+  //================GET SENSOR DATA================
   control.get_model(marg.encoder_velocity); //comment out if not using output throttle signal as a rough speed estimate
   marg.compute_All(); //get AHRS (and Velocity as well) from IMU. 980us, has failsafe in case sensor is reset somehow
   
   marg.get_Rotations(opticalFlow.omega); //transfer rates of rotation
   opticalFlow.updateOpticalFlow(); //update optical flow 150us
+  if(opticalFlow.failure)
+  {
+    timer = micros();
+  }
   gps.localizer(); //update gps. 12us
   //till here it takes 180us, total at 1170us
-  car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, marg.mh, marg.mh_Error, marg.Ha, marg.V, marg.V_Error,
+  //================SENSOR FUSION===================
+  car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, gps.gSpeed, gps.Sdop, gps.headMot, gps.headAcc, marg.mh, marg.mh_Error, marg.Ha, marg.V, marg.V_Error,
              opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error,marg.encoder_velocity); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
   marg.Velocity_Update(car.Velocity,car.VelError,car.AccBias);//pass the corrected velocity back to marg where it gets low pass filtered too.
   
-  control.feedback(car.Velocity,car.VelError);//giving feedback to the car's model for making the machine learn the parameter(s) of the model
+  control.feedback(car.Velocity,car.VelError,opticalFlow.V_Error);//giving feedback to the car's model for making the machine learn the parameter(s) of the model
 //transfer the bias. this is pretty much the reason why the update function does not take arguments by reference
   //till here it takes 120us, total at 1330us
+  //================HANDLE COMMUNICATIONS================
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
-//  time_it = micros();
-  gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, marg.V_Error, T,gps.Hdop); //also regulated at 10Hz
-//  benchmark = max(micros()-time_it,benchmark);
-  if(gcs.get_Mode()!=255)
+  if(reflect_WP)//if waypoints are to be sent back, this remains true
+  {
+    reflect_WP = !(gcs.Send_WP(c[point].X,c[point].Y,point)); //this function will return true when waypoints have been sent back
+  }
+  else //this is for the general case
+  {
+    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+                  dummy, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
+//      gcs.Send_State(MODE, double(car.X), double(car.Y),double(dest_X),double(dest_Y),int_1_x,int_1_y,int_2_x,int_2_y,
+//                    dummy, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
+//    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
+//                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
+  }
+  if(gcs.get_Mode()!=255)//255 is condition for no message received yet.
   {
     MODE = gcs.get_Mode();
   }
   
   get_Inputs(inputs); //get inputs from r/c receiver
-  if(gcs.failsafe)
+  if(gcs.failsafe)//if gcs has shutdown for some reason, fallback on the transmitter.
   {
     if(inputs[5] <= 1100)
     {
@@ -175,13 +204,13 @@ void loop()
     {
       MODE = CRUISE;
     }
-    if(inputs[2]<1000)
+    if(inputs[2]<1000)//if even the transmitter is off, then inputs[2] will have a value of less than 1000.
     {
       MODE = MODE_STANDBY;
     }
   }
 
-  if(message == SET_ORIGIN_ID)
+  if(message == SET_ORIGIN_ID)//this is for resetting the position
   {
     car.initialize(gps.longitude, gps.latitude, gps.Hdop, marg.mh, 0, marg.Ha);
   }
@@ -191,8 +220,7 @@ void loop()
     int16_t A[3],G[3],M[3],gain[3],T;
     gcs.Send_Calib_Command(1); //let GCS know we are doing calib
     delay(2000);
-    marg.gyro_caliberation();
-    //keep the car still, rotate it 180, keep the car still again, rotate 180.
+    marg.gyro_caliberation();//keep the car still, rotate it 180, keep the car still again, rotate 180.
     gcs.Send_Calib_Command(2);
     delay(2000);
     marg.accel_caliberation();
@@ -203,77 +231,97 @@ void loop()
     gcs.Send_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT,marg.axis_gain); //send new found offsets to GCS
     timer = micros(); //reset timer  
   }
-  
-  if(message == WP_ID)
+
+  if(message == WP_ID)//if waypoint message is received
   {
-    if(num_waypoints==0)
+    reflect_WP = true; //we'll have to reflect the waypoints
+    if(num_waypoints==0)//if we have not initialized the waypoints yet
     {
       num_waypoints = gcs.msg_len;//for WP, the msg_len is not the length of the received packet, its the number of waypoints that will be given to the car in totality.
-      c = new coordinates[num_waypoints]; //the first message will never contain the coordinates. this is because the waypoints may be marked or sent
-      point = 0;
+      c = new coordinates[num_waypoints];
+      point = 0;//initialize point.
     }
-    else if(point < num_waypoints && num_waypoints !=0)//TODO : prevent people from sending more waypoints than num_waypoints
+    if(point < num_waypoints && num_waypoints !=0)
     {
-      gcs.Get_WP(c[point].longitude, c[point].latitude);
-      c[point].calcXY(car.iLon, car.iLat);
-      point++;
-      if(point == num_waypoints)
+      float dummy_X,dummy_Y;
+      gcs.Get_WP(dummy_X, dummy_Y,point); //get the coordinates
+      c[point].X = dummy_X;
+      c[point].Y = dummy_Y;
+      c[point].calcLatLon(car.iLon, car.iLat); // calculate lat lon just in case
+      if(point == num_waypoints-1)
       {
         if( check_loop(c[0],c[point]) ) //check if first and last points are within 1/2 a meter range
         {
           circuit = true;
           c[point].copy(c[0]);
         }
-        track.generate_Slopes(c,num_waypoints, circuit); // generate the slopes!TODO : prevent going out of track
-
+        track.generate_Slopes(c,num_waypoints, circuit); // generate the slopes! happens only once so I reset the timer 
         dest_X = c[0].X;
         dest_Y = c[0].Y;
         slope  = c[0].slope;
+        car_ready = true;
+        sentinel = 0;
+        timer = micros();
       }
     }
     else
     {
-      //fucc
+      gcs.Send_Calib_Command(5);
     }
   }
-  if(message == CLEAR_ID)
+  if(message == CLEAR_ID && num_waypoints!=0)
   {
-    num_waypoints = 0;
-    point = 0;
-    sentinel = 0;
-    delete[] c; //clear all waypoints
+    clear_wp();
   }
 
-  if(message == MARK_ID)//TODO: if the waypoints are being marked, shouldn't we still check the looping condition?
-  {
-    c[point].X = car.X;
-    c[point].Y = car.Y;
-    c[point].calcLatLon(car.iLon, car.iLat);
-    point++;
-  }
-
-  if( distancecalcy(car.Y, dest_Y, car.X, dest_X,0) < WP_CIRCLE)
+  if( distancecalcy(car.Y, dest_Y, car.X, dest_X,0) <= WP_CIRCLE && num_waypoints!=0 && car_ready)//checking if waypoint has been reached
   {
     sentinel++;
-    dest_X = c[sentinel].X; //TODO : maybe just pass the object of the coordinate instead of transfering all the values manually.
-    dest_Y = c[sentinel].Y;
-    slope = c[sentinel].slope; 
+    if(circuit)
+    {
+      sentinel = sentinel%num_waypoints;
+      dest_X = c[sentinel].X; //TODO : maybe just pass the object of the coordinate instead of transfering all the values manually.
+      dest_Y = c[sentinel].Y;
+      slope = c[sentinel].slope; 
+    }
+    else
+    {
+      sentinel = min(sentinel,num_waypoints-1);
+      if(sentinel == num_waypoints-1)
+      {
+        clear_wp();
+      }
+      else
+      {
+        dest_X = c[sentinel].X; //TODO : maybe just pass the object of the coordinate instead of transfering all the values manually.
+        dest_Y = c[sentinel].Y;
+        slope = c[sentinel].slope; 
+      }
+    }
+
   }
   
-
-
   /*
    * ADD CODE FOR JEVOIS/COMPANION COMPUTER HERE 
    */
   
-  if(MODE == CRUISE || MODE == LUDICROUS || num_waypoints !=0 )//autonomous modes
+  if( (MODE == CRUISE || MODE == LUDICROUS) && point == num_waypoints-1 && num_waypoints!=0 )//autonomous modes. The paranthesis are important! the conditions need to be clubbed together
   {
-    track.calculate_Curvatures(car.Velocity, car.X, car.Y, car.heading, dest_X, dest_Y, slope ); //TODO : find only local maxima not global maxima.
+    time_it = micros();
+    track.calculate_Curvatures(car.Velocity, car.X, car.Y, car.heading, dest_X, dest_Y, slope ); 
+    benchmark = micros()-time_it;
     control.driver(track.C, track.braking_distance, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs); //send data to driver code. automatically maintains a separate control frequency.
+    dummy = track.C[0];
   }
-  if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY || MODE==MODE_CONTROL_CHECK)//manual modes
+  else if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY || MODE==MODE_CONTROL_CHECK)//manual modes
   {
     float dum[] = {0.0,0.0};//dummy
+    control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
+  }
+  else
+  {
+    float dum[] = {0.0,0.0};//dummy
+    MODE = MODE_STANDBY;
     control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
   if(T > dt_micros)//in case the execution time exceeds loop time limit
