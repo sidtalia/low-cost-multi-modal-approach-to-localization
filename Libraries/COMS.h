@@ -91,24 +91,32 @@ public:
 		write_To_Port(T,2);
 	}//42 bytes sent
 
-	void Get_WP(double &X, double &Y)
+	void Get_WP(float &X, float &Y,int16_t &point)
 	{
-
-		X = float(int32_t( Serial.read()|int32_t(Serial.read()|int32_t(Serial.read()|int32_t(Serial.read()<<8)<<8)<<8)<<8 ) )*1e-7; //coordinates transfered wrt to origin, converted 
-		Y = float(int32_t( Serial.read()|int32_t(Serial.read()|int32_t(Serial.read()|int32_t(Serial.read()<<8)<<8)<<8)<<8 ) )*1e-7; //coordinates transfered wrt to origin, converted 
+		received_stamp = millis();
+		X = float(int16_t(Serial.read()|int16_t(Serial.read()<<8) ) )*1e-2; //coordinates transfered wrt to origin, converted 
+		Y = float(int16_t(Serial.read()|int16_t(Serial.read()<<8) ) )*1e-2; //coordinates transfered wrt to origin, converted 
+		point = int16_t(Serial.read()|int16_t(Serial.read()<<8) );	
 	}
 
-	void Send_WP(double X, double Y)
+	bool Send_WP(float X, float Y,int16_t point)
 	{
-		long x = long(X*1e7);
-		long y = long(Y*1e7);
+		if(millis() - transmit_stamp > 100)
+		{
+			transmit_stamp = millis();
+			int x = int16_t(X*1e2);
+			int y = int16_t(Y*1e2);
 
-		write_To_Port(START_SIGN,2);
-		write_To_Port(8,2);
-		write_To_Port(WP_ID,2);
-		write_To_Port(0x01,2);
-		write_To_Port(x,4);
-		write_To_Port(y,4);
+			write_To_Port(START_SIGN,2);
+			write_To_Port(8,2);
+			write_To_Port(WP_ID,2);
+			write_To_Port(0x01,2);
+			write_To_Port(x,2);
+			write_To_Port(y,2);
+			write_To_Port(point,2);
+			return 1;
+		}
+		return 0;
 	}//10 bytes 
 
 	void Send_Calib_Command(uint8_t id)
@@ -153,7 +161,7 @@ public:
 			out[14] = Hdop*1e3;
 
 			write_To_Port(START_SIGN,2);
-			write_To_Port(56,2);
+			write_To_Port(68,2);
 			write_To_Port(STATE_ID,2);
 			write_To_Port(int16_t(mode),2);
 			for(int i=0;i<15;i++)
