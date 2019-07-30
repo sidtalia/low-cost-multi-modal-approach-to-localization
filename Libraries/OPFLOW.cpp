@@ -54,20 +54,27 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
 
     X += omega[1]*ride_height*dt*0.1f; //the sign was flipped on 11/2/19 3:28pm
     Y -= omega[0]*ride_height*dt*0.1f; //compensation for rotations ya know. this sign was also flipped. please run a test.
+    failure = false;
+    if(surfaceQuality>=240)
+    {
+      failure = true; //this is possible too!
+    }
   } 
-	else if(motion & 0x10)  //buffer overflow
+	else
 	{
 		uint8_t surfaceQuality = 1;		
     SQ = float(surfaceQuality);
 	  P_Error = 1e3; //some very large value that the optical flow sensor would never actually have.
     V_Error = 1e3;//ridiculous values to represent that optical flow is unreliable.
+    initialize();
+    failure = true;
   }
 
   X = LPF(0,X);
   Y = LPF(1,Y);
   V_x = X*LOOP_FREQUENCY;
   V_y = Y*LOOP_FREQUENCY;
-  if(SQ<60 || omega[2]>OP_FLOW_MAX_SPEED)
+  if(SQ<50 || omega[2]>OP_FLOW_MAX_SPEED)
   {
     V_y = LPF(3,omega[2]);
     V_Error = 1e3;
