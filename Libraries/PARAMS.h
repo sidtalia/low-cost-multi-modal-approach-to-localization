@@ -10,16 +10,22 @@
 #define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
 #define OP_POS (float) DIST_BW_ACCEL_AXLE*0.6f
 #define OP_FLOW_MAX_SPEED (float) 6.0
+#define OP_FLOW_MAX_V_ERROR (float) 1000.0
 #define DAMPING (float) 0.4f
 
 #define THROTTLE_OFFSET 1535
 #define THROTTLE_MAX 1810
 #define THROTTLE_DELTA 10
 #define THROTTLE_RANGE_INV (float) (1.0f/float(THROTTLE_MAX - THROTTLE_OFFSET))
+#define THROTTLE_RANGE (float) (THROTTLE_MAX - THROTTLE_OFFSET)
 #define A0 (float) 0.943214474
 #define A1 (float) -7.71363682
 #define A2 (float) 18.7732828
 #define A3 (float) -0.00528010
+#define AI0 (float) 0.00031474
+#define AI1 (float) -0.0022959
+#define AI2 (float) 0.0663019
+#define AI3 (float) -0.01024264
 #define ROLL_RES (float) 2.0
 #define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
 #define MAX_LEARNING_SPEED OP_FLOW_MAX_SPEED/2
@@ -29,8 +35,9 @@
 #define DECAY_RATE (float) dt/DECAY_TIME 
 #define INITIAL_NOISE (float) 1.0f
 #define MIN_FEEDBACK_FACTOR 0.7
+#define MIN_SPEED_ERROR (float) -0.5f
 
-#define DECLINATION (float) 1.3f
+#define DECLINATION (float) -5.0f
 #define GPS_GLITCH_SPEED (float) 15.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
@@ -52,11 +59,13 @@
 #define COMMAND_ID 0X02
 
 #define CONTROL_FREQUENCY LOOP_FREQUENCY/2
-#define FUTURE_TIME (float) 2/CONTROL_FREQUENCY
+#define FUTURE_TIME (float) 2/CONTROL_FREQUENCY //possible culprit
 #define CONTROL_TIME (float) 1000/CONTROL_FREQUENCY //control time in ms
 #define CONTROL_TIME_SEC (float) 1/CONTROL_FREQUENCY
+#define PATH_WIDTH (float) 3.0 //width of the track.  possible culprit
+#define CONSTRUCT_LENGTH (float) PATH_WIDTH*2.5f
 
-#define WP_CIRCLE 0.5 //1/2 meter radius around waypoint.
+#define WP_CIRCLE 0.5 //1/2 meter radius around waypoint. possible culprit
 
 #define WP_ID 0x0005
 #define STATE_ID 0x0006
@@ -74,7 +83,7 @@
 #define ERROR_CODE 0xFF
 
 #define COM_BAUD 230400
-#define GPS_BAUD 230400
+// #define GPS_BAUD 230400
 #define JEVOIS_BAUD 9600
 
 #endif
