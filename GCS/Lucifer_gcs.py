@@ -2,13 +2,14 @@ import LUCIFER_COMS
 from LUCIFER_COMS import *
 import time
 import os
+import traceback
 import matplotlib.pyplot as plt
 plt.ion()
 fig = plt.figure()
 import tkinter as tk
 from tkinter import *
-
-# os.system("Lucy.py")
+import math as m
+# os.system("python Lucy.py")
 
 BAUD = 230400
 com = com_handler()
@@ -20,6 +21,7 @@ START_ID = 0x00FE
 WP_ID = 0x0005
 STATE_ID = 0x0006
 CALIB_ID = 0x000A
+CLEAR_ID = 0x0008
 
 GYRO_CAL = 0x10
 ACCEL_CAL = 0x20
@@ -50,7 +52,8 @@ if(connection == False):
 	print("please connect the transceiver and try again. closing.")
 	run = False
 
-file_name = 'LUCIFER_offsets_1.npy'
+file_name = 'LUCIFER_offsets_0.npy'
+waypoint_file = 'LUCIFER_WP_1.npy'
 log_file = 'LUCIFER_log_0.npy'
 saved = False
 
@@ -77,7 +80,14 @@ class CAR():
 
 car = CAR()
 car._init_()
-
+waypoint_list = []
+received_wp_list = []
+point_count=0
+waypoint_length = 0
+try:
+	waypoint_list = np.load(waypoint_file)
+except:
+	pass
 
 latlon = np.array([0])
 
@@ -86,7 +96,22 @@ def send_heartbeat(car):
 	global Tx_MODE
 	global Tx_ID
 	global Tx_msg_len
+	global point_count
+	global waypoint_length
 	message_id = np.array([START_ID,Tx_msg_len,Tx_ID,Tx_MODE],dtype = 'int16') 
+	if(Tx_ID==WP_ID or point_count>0):
+		# print(Tx_ID,point_count)
+		# print("sending waypoint!")
+		message_id = np.array([START_ID,waypoint_length,WP_ID,Tx_MODE],dtype = 'int16') 
+		n = waypoint_length - point_count
+		X = int(waypoint_list[n][0]*1e2)
+		Y = int(waypoint_list[n][1]*1e2)
+		message = list(np.array([X,Y,n],dtype='int16'))
+		print(message)
+		message_id = np.concatenate((message_id,message),axis=0)
+	if(point_count<0 and Tx_ID == WP_ID):
+		# set_standby()
+		Tx_ID = STATE_ID
 	com.send(message_id)
 	if(Tx_MODE == 0x07): #special case
 		set_standby()
@@ -140,18 +165,21 @@ def readSerial():
 
 			if ID == WP_ID:
 				#the car is sending waypoints. store them.
+				global point_count
 				print('waypoint message')
-				buf = np.frombuffer(message[4:],dtype='int32')
-				car.lon.append(buf[0]) 
-				car.lat.append(buf[1]) 
-				print("registered waypoints: %f,%f",car.lat[-1],car.lon[-1])
-				lat = np.array(car.lat)
-				lon = np.array(car.lon)
-				message_id = np.array([WP_ID])
-				latlon = np.concatenate((message_id,lat,lon),axis=0)#create new array
+				buf = np.frombuffer(message[4:],dtype='int16')
+				received_wp_list.append(buf)
+				n = waypoint_length-point_count
+				check_wp = waypoint_list[n]
+				if(m.fabs(buf[0] - check_wp[0]*100) > 2 or m.fabs(buf[1]-check_wp[1]*100)>2 or buf[2]!=n):
+					print("error",buf[:3],waypoint_list[n],n)
+				else:
+					print("got wp")
+					point_count -= 1
+
 
 			if ID == STATE_ID:
-				print('state message')
+				print('state message',num_bytes)
 				buf = np.frombuffer(message[4:],dtype = 'int32')
 				car.X =            1e-7*buf[0]
 				car.Y =            1e-7*buf[1]
@@ -170,8 +198,8 @@ def readSerial():
 				Hdop =			   1e-3*buf[14]
 
 				gcs.MODE.configure(text = 'MODE = {}'.format(str(car.MODE) ) )
-				gcs.latitude.configure(text = 'filtered latitude = {} degrees'.format(str(round(car.Y,7) ) ) )
-				gcs.longitude.configure(text = 'filtered longitude = {} degrees'.format(str(round(car.X,7) ) ) )
+				gcs.latitude.configure(text = 'filtered Y = {} meters'.format(str(round(car.Y,7) ) ) )
+				gcs.longitude.configure(text = 'filtered X = {} meters'.format(str(round(car.X,7) ) ) )
 				gcs.gps_latitude.configure(text = 'gps latitude = {} degrees'.format(str(round(dummy_lat,7) ) ) )
 				gcs.gps_longitude.configure(text = 'gps longitude = {} degrees'.format(str(round(dummy_lon,7) ) ) )				
 				gcs.speed.configure(text = 'speed = {} m/s'.format(str(round(car.speed,2) ) ) )
@@ -250,6 +278,10 @@ def readSerial():
 	except KeyboardInterrupt:
 		com.close()
 		exit()
+	
+	except Exception as e:
+		print(traceback.format_exc())
+
 	except:
 		pass
 
@@ -294,8 +326,41 @@ def set_origin():
 	Tx_ID = 0x000B
 
 def mark():
+	global waypoint_list
+	global car
+	point = np.array([car.X,car.Y])
+	waypoint_list.append(point)
+
+def save_wp():
+	global waypoint_list
+	global point_count
+	global waypoint_length
+	waypoint_list = np.array(waypoint_list)
+	point_count = len(waypoint_list)
+	waypoint_length = point_count
+	np.save(waypoint_file,waypoint_list)
+
+def check_fidelity():
+	global waypoint_list
+	global received_wp_list
+	received_wp_list = np.array(received_wp_list)
+	for i in range(len(waypoint_list)):
+		if waypoint_list[i][0] != received_wp_list[i][0]:
+			return
+	set_control_check()
+
+def clear_gui():
+	global waypoint_list
+	waypoint_list = []
+
+def clear_car():
 	global Tx_ID
-	Tx_ID = 0x0009 #mark id
+	Tx_ID = CLEAR_ID
+
+def send_wp():
+	global Tx_ID
+	save_wp()
+	Tx_ID = WP_ID
 
 def calib():
 	global Tx_ID
@@ -311,8 +376,6 @@ def stop_recording():
 	global rec
 	rec = False
 
-def mark():
-	return
 
 class GCS():
 
@@ -377,6 +440,12 @@ class GCS():
         self.control_check_button = tk.Button(self.frame, text = 'CONTROL_CHECK', command = set_control_check)
         self.control_check_button.pack()
         self.mark_button = tk.Button(self.frame, text = 'MARK', command = mark)
+        self.mark_button.pack()
+        self.mark_button = tk.Button(self.frame, text = 'SAVE_N_SEND_WP', command = send_wp)
+        self.mark_button.pack()
+        self.mark_button = tk.Button(self.frame, text = 'CLEAR_GUI_WP', command = clear_gui)
+        self.mark_button.pack()
+        self.mark_button = tk.Button(self.frame, text = 'CLEAR_CAR_WP', command = clear_car)
         self.mark_button.pack()
         self.mark_button = tk.Button(self.frame, text = 'SET ORIGIN', command = set_origin)
         self.mark_button.pack()
