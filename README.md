@@ -23,5 +23,16 @@ For the hardware specifications and 3d print files as well as 2 d drawings, go i
 
 For the back end libraries, go into the "libraries folder".(surprise surprise).
 
-You will have to clone the following repository : https://github.com/naughtyStark/Arduino_STM32 and follow the instructions in this video for setting up your arduino IDE :
-https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s (its pretty simple as arduino already supports it and does not affect your other stuff in arduino so chill)
+1) You will need : Arduino IDE (1.6.2 or better)
+
+2) You will have to clone the following repository : https://github.com/naughtyStark/Arduino_STM32 and follow the instructions in this    video for setting up your arduino IDE : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s (its pretty simple as arduino already supports it and does not affect your other stuff in arduino so chill)
+
+3) You will need Python 3 (it may or may not work on python 2, I have only tried it with python 3.5 and 3.6.5).
+Python dependencies : 
+Matplotlib,numpy, pyserial,scikitlearn :
+```
+pip3 install matplotlib
+pip3 install numpy 
+pip3 install pyserial
+pip3 install scikitlearn
+```
