@@ -23,9 +23,9 @@ For the hardware specifications and 3d print files as well as 2 d drawings, go i
 
 For the back end libraries, go into the "libraries folder".(surprise surprise).
 
-1) You will need : Arduino IDE (1.6.2 or better)
+1) You will need : Arduino IDE (1.6.13 or better)
 
-2) You will have to download the hardware files from : https://drive.google.com/file/d/1j8or7khmo2Z-QlrW-FHwhAybPbwVp9Ex/view?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and follow the instructions in this video for setting up your arduino IDE : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s (its pretty simple as arduino already supports it and does not affect your other stuff in arduino so chill)
+2) You will have to download the hardware files from : https://drive.google.com/file/d/1j8or7khmo2Z-QlrW-FHwhAybPbwVp9Ex/view?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and unzip/extract it inside the "Arduino/hardware folder. You will also need to install the cortex M3 SAMD board package in arduino, which can be installed easily through the boards manager in arduino IDE. Use this video for reference, the step of cloning the STM32 repository is replaced by downloading the zip and the rest remains the same : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s
 
 3) You will need Python 3 (it may or may not work on python 2, I have only tried it with python 3.5 and 3.6.5).
 Python dependencies : 
@@ -34,5 +34,5 @@ Matplotlib,numpy, pyserial,scikitlearn :
 pip3 install matplotlib
 pip3 install numpy 
 pip3 install pyserial
-pip3 install scikitlearn
+pip3 install scikit-learn
 ```
