@@ -1,22 +1,24 @@
 #include<Servo.h>
 
-volatile unsigned long timer[4];
+volatile unsigned long timer[5];
 volatile byte last_channel[6], tick = 0;
-volatile int input[10]={1500,1500,1500,1500,1500,1500,1500,1500,1500,1500};
+volatile int input[11]={1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1050};
 volatile int delT;
 volatile bool servoWrite = false,takeover = false;
 long failsafe;
 
-Servo motor, steer;
+Servo motor, steer, usr;
 
 void setup()
 {
   PCICR |= (1 << PCIE0);   
+  PCMSK0 |= (1 << PCINT0); //8
   PCMSK0 |= (1 << PCINT1); //9
   PCMSK0 |= (1 << PCINT2); //10
   PCMSK0 |= (1 << PCINT3); //11
   pinMode(3,INPUT);
   pinMode(4,INPUT);
+  usr.attach(5);
   Serial.begin(38400);
 }
 
@@ -75,6 +77,7 @@ void loop()
     steer.attach(3);
     Serial.print("in");
   }
+  usr.writeMicroseconds(input[10]);//mandatory step
   while( micros() - timer < 20000);
 }
 
@@ -125,6 +128,17 @@ ISR(PCINT0_vect)
     last_channel[2]=0;
     input[9]=timer[0]-timer[3];
     
+  }
+  //ULTRASONIC CHANNEL
+  if(last_channel[3]==0&& PINB & B00000001) //makes sure that the first pin was initially low and is now high
+  {                                         //PINB & B00000001 is equivalent to digitalRead but faster
+    last_channel[3]=1;
+    timer[4]=timer[0];          
+  }
+  else if(last_channel[3]==1 && !(PINB & B00000001))
+  {
+    last_channel[3]=0;
+    input[10]=timer[0]-timer[4];
   }
 }
 
