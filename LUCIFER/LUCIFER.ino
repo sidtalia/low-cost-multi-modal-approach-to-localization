@@ -178,7 +178,7 @@ void loop()
   else //this is for the general case
   {
     gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  dummy, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
+                  gps.gSpeed, gps.Sdop, car.PosError_tot , marg.mh_Error, car.VelError, inputs[7],gps.Hdop); //also regulated at 10Hz
 //      gcs.Send_State(MODE, double(car.X), double(car.Y),double(dest_X),double(dest_Y),int_1_x,int_1_y,int_2_x,int_2_y,
 //                    dummy, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
