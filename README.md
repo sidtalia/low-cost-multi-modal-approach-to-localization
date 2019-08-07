@@ -25,7 +25,7 @@ For the back end libraries, go into the "libraries folder".(surprise surprise).
 
 1) You will need : Arduino IDE (1.6.2 or better)
 
-2) You will have to download the hardware files from : https://drive.google.com/drive/folders/1hVWt2ajdrCzbVmjajyTHclBcHMpSebda?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and follow the instructions in this video for setting up your arduino IDE : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s (its pretty simple as arduino already supports it and does not affect your other stuff in arduino so chill)
+2) You will have to download the hardware files from : https://drive.google.com/file/d/1j8or7khmo2Z-QlrW-FHwhAybPbwVp9Ex/view?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and follow the instructions in this video for setting up your arduino IDE : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s (its pretty simple as arduino already supports it and does not affect your other stuff in arduino so chill)
 
 3) You will need Python 3 (it may or may not work on python 2, I have only tried it with python 3.5 and 3.6.5).
 Python dependencies : 
