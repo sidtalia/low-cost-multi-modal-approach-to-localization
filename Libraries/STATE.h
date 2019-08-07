@@ -6,7 +6,7 @@
 
 #define GPS_UPDATE_RATE (float) 10 //gps update rate in Hz
 #define GPS_UPDATE_TIME (float) 0.1
-#define MIN_GPS_SPEED (float) 3.0 //min speed till which gps is not used for velocity correction
+#define MIN_GPS_SPEED (float) 4.0 //min speed till which gps is not used for velocity correction
 #define GPS_HDOP_LIM (float)2.5
 #define GPS_GLITCH_RADIUS (float) 3.0 
 #define C1_STATE (float) 0.984414
