@@ -37,7 +37,7 @@
 #define MIN_FEEDBACK_FACTOR 0.7
 #define MIN_SPEED_ERROR (float) -0.5f
 
-#define DECLINATION (float) -5.0f
+#define DECLINATION (float) 0.0f//-5.0f
 #define GPS_GLITCH_SPEED (float) 15.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
@@ -63,9 +63,9 @@
 #define CONTROL_TIME (float) 1000/CONTROL_FREQUENCY //control time in ms
 #define CONTROL_TIME_SEC (float) 1/CONTROL_FREQUENCY
 #define PATH_WIDTH (float) 3.0 //width of the track.  possible culprit
-#define CONSTRUCT_LENGTH (float) PATH_WIDTH*2.5f
+#define CONSTRUCT_LENGTH (float) PATH_WIDTH*3.0f
 
-#define WP_CIRCLE 0.5 //1/2 meter radius around waypoint. possible culprit
+#define WP_CIRCLE 0.75 //1/2 meter radius around waypoint. possible culprit
 
 #define WP_ID 0x0005
 #define STATE_ID 0x0006
