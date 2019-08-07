@@ -10,7 +10,7 @@
 #define WHEELBASE (float)0.254 //wheelbase in meters
 #define STEERING_MAX 25 //25 degrees max steering 
 #define STEERING_PULSE_LOCK2CENTER 372 //pulse difference between center steering and steering at full lock. they might be different for your car.
-#define ABSOLUTE_MAX_ACCELERATION 6 //10m/s*s. This is the absolute maximum acceleration the car can handle
+#define ABSOLUTE_MAX_ACCELERATION 7 //10m/s*s. This is the absolute maximum acceleration the car can handle
 #define MAX_ACCELERATION (float) (0.7*ABSOLUTE_MAX_ACCELERATION)
 #define MAX_ACCELERATION_SQ (float) MAX_ACCELERATION*MAX_ACCELERATION
 //maximum safe acceleration (omnidirectional) that the car can handle without any problems whatsoever 
@@ -23,7 +23,7 @@
 #define STEERINGNULL 1500
 #define THROTTLENULL 1500
 #define VMAX (float) 10.0 //maximum speed that the car is allowed to hit.
-#define SAFE_SPEED (float) 2.0 //safe cruise speed defined as 2.5 m/s. Basically this is how fast I can run after the car if something went wrong.
+#define SAFE_SPEED (float) 4.0 //safe cruise speed defined as 2.5 m/s. Basically this is how fast I can run after the car if something went wrong.
 #define OPEN_GAIN (float) 25.0 //open loop throttle gain. I am assuming a linear relationship between throttle input and speed
 #define CLOSED_GAIN (float) 10 //closed loop gain. This helps me deal with the fact that the relation between throttle and speed is not exactly linear
 #define BRAKE_GAIN (float) (500/MAX_ACCELERATION) //brake gain. Explained later.
@@ -67,7 +67,7 @@ class controller
 	int throttle,steer;
 	float speed,speed_Error,roc,La,yR,last_Speed,last_Throttle,Process_noise,ground_Speed,load;
 	float steering_bias;
-	float xA[2][2],yA[2][2];//for low pass filter
+	float xA[4][2],yA[4][2];//for low pass filter
 	bool IsLearning,IsOversteering;
 	public:
 	float feedback_factor,Ha;
@@ -258,6 +258,9 @@ class controller
 			return; //maintain a defined control frequency separate from observation frequency. Only used here because synchronising the time stamps across 2 objects would be difficult(sort of. could fix. create a pull request if you want it fixed)
 		}
 
+		float usr_steering = float(int(inputs[7])%100 - 50);
+		float usr_speed_reduction = (inputs[7]- (1050 + usr_steering))/200.0f;
+
 		float deceleration, backoff, resultant, correction, yaw_Compensation, V_target, V_error;
 		float V1,deceleration_required;
 		throttle = THROTTLENULL;
@@ -280,7 +283,21 @@ class controller
 		if(MODE == MODE_PARTIAL)
 		{
 			V_target = input_to_speed(inputs[2]);
+
+			if(usr_speed_reduction>=V || usr_speed_reduction>=4.5)
+			{
+				V_target = 0;
+			}
+			else
+			{
+				V_target -= usr_speed_reduction;
+			}
 			correction = (inputs[0] - STEERINGNULL)*STEERING_OPEN_GAIN_INV;
+			if(fabs(usr_steering)>5)
+			{
+				correction = LPF(2,usr_steering);
+			}
+
 			V_error = V_target - V; //speed setpoint - current speed
 			if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
 			{
@@ -403,7 +420,7 @@ class controller
 			{
 				backoff = 0;
 			}
-			throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff - 0.5*fabs(yaw_correction(yaw_Compensation)));
+			throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff  - 0.25*fabs(yaw_correction(yaw_Compensation)));
 		}
 		if(V_error< MIN_SPEED_ERROR)//required velocity is less than current velocity.
 		{
@@ -424,7 +441,7 @@ class controller
 			{
 				deceleration = -MAX_ACCELERATION;
 			}
-			throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff + 0.5*fabs(yaw_correction(yaw_Compensation)));
+			throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff  + 0.25*fabs(yaw_correction(yaw_Compensation)));
 		}
 
 		steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
