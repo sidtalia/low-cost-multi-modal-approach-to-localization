@@ -1,6 +1,5 @@
-## Self-driving-car-STM-32
-
-DISCLAIMER : This project is not as generic as the arduRover project and is not trying to achieve the same goals, although it was inspired by it.
+# Self-driving-car-STM-32
+This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle.
 
 ### About the project
 This project is supposed to act as a lower level controller for higher level agents. The car can be given a point (X,Y,theta) relative to it's current location. The car can also reactively avoid obstacles if ultrasonic sensors are present in the build. Ideally, the higher level agent should give waypoints that do not force the car to go through an obstacle (that's kind of the point). The lower level controller takes care of figuring out the throttle and steering control for getting to a particular point.
