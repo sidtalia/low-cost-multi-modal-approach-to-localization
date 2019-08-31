@@ -1,14 +1,29 @@
 # Self-driving-car-STM-32
 This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle.
+![image](https://user-images.githubusercontent.com/24889667/64060910-eec52d80-cbf0-11e9-99f2-20f1574e10d9.png)
+The first, second and third (current iteration). The first one had the connections hot-glued instead of soldered (yes). It has a come a long way since then. 
+
 
 ### About the project
-This project is supposed to act as a lower level controller for higher level agents. The car can be given a point (X,Y,theta) relative to it's current location. The car can also reactively avoid obstacles if ultrasonic sensors are present in the build. Ideally, the higher level agent should give waypoints that do not force the car to go through an obstacle (that's kind of the point). The lower level controller takes care of figuring out the throttle and steering control for getting to a particular point.
+This project is supposed to act as a lower level controller for higher level agents. The car can be given a point (X,Y,theta) relative to it's current location. The car can also reactively avoid obstacles if ultrasonic sensors are present in the build (this will be replaced by lidars in the future). Ideally, the higher level agent should give waypoints that do not force the car to go through an obstacle (that's kind of the point of having a higher level agent). The lower level controller takes care of figuring out the throttle and steering control for getting to a particular point.
 
-### Odometry
-The odometry is obtained by fusing data from GPS, optical flow, IMU+compass and also from a simplistic model of the car's propulsion system. The state estimator also exploits the non-holonomic constraints. Using multiple sources of information allows the car to operate with a high degree of accuracy (long term) when all the sensors are operating in peak condition and with an acceptable level of accuracy when one or two of the sensors are not in peak condition. The odometry assumes that the car is moving on a flat, horizontal plane (fair assumption for a car that has a ride height of 15 mm)
+### Odometry and localization
+The localization is supposed to happen in open outdoor environments using a filtered GPS data. I make the assumption that there is no exploitable feature in the environment. This is mostly because a system dependent on discernable features in the environment would not work as well in environments where there are none. The user can always add their own way of localization and simply send the location data to the low level controller (the support for this will be incorporated soon). Most projects like these should be tested in wide open spaces for the sake of safety and so GPS based localization made the most sense as being the most "generic" way of localization.
+
+![image](https://user-images.githubusercontent.com/24889667/64061985-13280680-cbff-11e9-98cb-fa1b4d33b29a.png)
+
+The odometry is obtained by fusing data from GPS, optical flow, IMU+compass and also from a simplistic model of the car's propulsion system, although the last method is kept as a last-resort under multiple sensor failures. The state estimator also exploits the non-holonomic constraints. Using multiple sources of information allows the car to operate with a high degree of accuracy (long term) when all the sensors are operating in peak condition and with an acceptable level of accuracy when one or two of the sensors are not in peak condition. The odometry assumes that the car is moving on a flat, horizontal plane (fair assumption for a car that has a ride height of 15 mm and is unlikely to go off-roading).
+
 
 ### Control
-The control is based on bezier curve(3rd order) based trajectory generation. The reason for selecting 3rd degree polynomial instead of 7 is simplicity. At the moment, the generated trajectory is not "optimal". There is however, support for pre-emptive braking. The speed control uses an asymmetric controller as the car does not speed up and slow down in the same fashion, i.e., when the throttle value is above neutral, the ESC controls the steady state speed (in an open-loop fashion) but when the throttle value is below neutral, the ESC makes the motor apply a braking torque (a steady force proportional to the control signal). The speed control takes as feedback the error in speed, the current acceleration and the current yaw rate of the car. The steering control is an open + closed loop progressive P controller (progressive as in the gain increases with the error, like in a progressive spring). The combination of these 2 controllers allows the car to remain under control for the most part even without preemptive braking.
+The control is based on bezier curve(3rd order) based trajectory generation. At the moment, the generated trajectory is not "optimal". There is however, support for pre-emptive braking. 
+
+The speed control uses an asymmetric non-linear controller. Big words? Here's a simpler explanation:
+1) The car does not speed up and slow down in the same way; the response of the brakes is different from the response of the throttle, therefore there is asymmetry in the process being controlled.
+2) The car does not speed up by the same amount for the same amount of change in throttle at different speeds, hence there is a non-linearity in the process being controlled.
+
+This means that in order to control the speed, I'd need a controller that compensates for both these problems and hence the big-words.
+The steering control is an open + closed loop progressive P controller (progressive as in the gain increases with the error, like in a progressive spring). The combination of these 2 controllers allows the car to remain under control for the most part even without preemptive braking.
 
 # Note for potential users : 
 The car will not operate without a GCS by default. This is for safety purposes and not for the sake of functionality. If the car were to operate without a GCS connection and only be in control of the user via the on board Radio control, there would be a single point of failure in communications. Adding the GCS-compulsion gives the system 2 independent points of failure. This also compulsorily limits the range of operation (which depends on the kind of transceiver used. For xbee pros, this range is ~80 meters, which is more than enough for doing experiments with a 1/10 scale car.)
@@ -20,7 +35,7 @@ The car will not operate without a GCS by default. This is for safety purposes a
 ![img_20190114_182337](https://user-images.githubusercontent.com/24889667/51115209-968e1680-182d-11e9-9db0-57a545443a52.jpg)
 
 
-## Building the project : 
+## Building the project (in progress): 
 
 (will update this as I build this project)
 
