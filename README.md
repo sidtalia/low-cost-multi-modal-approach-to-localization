@@ -25,6 +25,17 @@ The speed control uses an asymmetric non-linear controller. Big words? Here's a 
 This means that in order to control the speed, I'd need a controller that compensates for both these problems and hence the big-words.
 The steering control is an open + closed loop progressive P controller (progressive as in the gain increases with the error, like in a progressive spring). The combination of these 2 controllers allows the car to remain under control for the most part even without preemptive braking.
 
+The control system can adapt to the surface if it detects that the car is sliding when turning, but if it does enter a slide, it can handle itself ;)
+![GifMaker_20190831155907193](https://user-images.githubusercontent.com/24889667/64062747-533fb700-cc08-11e9-962e-d4252096618a.gif)
+
+The system is also capable of preemptive braking, i.e., slowing down before the turn instead of slowing down while turning (as done in racing).
+Video link for preemptive braking :  https://www.youtube.com/watch?v=Ko5H_G4eCLo 
+
+### Ground control system and V2V communications:
+The previous iterations did not have a GCS. This made debugging extremely hard as there wasn't an option of data recording or viewing the internal state of the controller in real time. The GCS in this work has the bare minimum features needed for debugging and is not on par with GCS like Missionplanner or even Qgroundcontrol, however, it gets the job done. The GCS allows me to record data that I could use for debugging as well as for finding flaws in the system. It can plot the position data from the car in real time.
+
+The car is equipped with an Xbee pro (2.4GHz) and so is the GCS (GCS here can be your laptop). The actual purpose of the Xbee was not just for communication with the GCS for debugging and monitoring, but rather to allow multiple agents to communicate with each other, meaning that the car is V2X ready from the hardware's point of view. I got the inspiration to do this from a project I did last year under Celestini Program India at IIT-Delhi where I worked on ADAS coupled with V2V communication: https://github.com/Celestini-Lucifer/ADAS
+
 # Note for potential users : 
 The car will not operate without a GCS by default. This is for safety purposes and not for the sake of functionality. If the car were to operate without a GCS connection and only be in control of the user via the on board Radio control, there would be a single point of failure in communications. Adding the GCS-compulsion gives the system 2 independent points of failure. This also compulsorily limits the range of operation (which depends on the kind of transceiver used. For xbee pros, this range is ~80 meters, which is more than enough for doing experiments with a 1/10 scale car.)
 
@@ -39,9 +50,9 @@ The car will not operate without a GCS by default. This is for safety purposes a
 
 (will update this as I build this project)
 
-For the hardware specifications and 3d print files as well as 2 d drawings, go into the "hardware folder". 
+For the hardware specifications and 3d print files as well as 2 d drawings, go into the "hardware folder"(currently unavailable). 
 
-For the back end libraries, go into the "libraries folder".(surprise surprise).
+For the back end libraries, go into the "libraries folder"(currently unavailable).
 
 1) You will need : Arduino IDE (1.6.13 or better)
 
