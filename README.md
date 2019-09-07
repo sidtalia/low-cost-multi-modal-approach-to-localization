@@ -1,8 +1,9 @@
 # Self-driving-car-STM-32
 This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle.
 ![image](https://user-images.githubusercontent.com/24889667/64060910-eec52d80-cbf0-11e9-99f2-20f1574e10d9.png)
-The first, second and third (current iteration). The first one had the connections hot-glued instead of soldered (yes). It has a come a long way since then. 
+The first, second and third (current iteration). The first one had the connections hot-glued instead of soldered (yes). It has a come a long way since then.
 
+The first version was built on a single Arduino Uno, the second on a pro-mini and the third one on an STM32F103C8T6 (aka the 'blue pill'). In all these projects, my aim has been to keep the cost of the controller and hardware as low as possible. This does put a limitation on how much processing power I can have but that's really where all the fun is; to send a rocket to the moon with computational power less than that of a modern wristwatch.
 
 ### About the project
 This project is supposed to act as a lower level controller for higher level agents. The car can be given a point (X,Y,theta) relative to it's current location. The car can also reactively avoid obstacles if ultrasonic sensors are present in the build (this will be replaced by lidars in the future). Ideally, the higher level agent should give waypoints that do not force the car to go through an obstacle (that's kind of the point of having a higher level agent). The lower level controller takes care of figuring out the throttle and steering control for getting to a particular point.
