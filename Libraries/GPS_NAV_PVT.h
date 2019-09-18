@@ -227,7 +227,7 @@ bool processGPS()    //bool function to tell us whether all the data has come in
       VelNED[0] = float(pvt.velN)*1e-3;
       VelNED[1] = float(pvt.velE)*1e-3;
       VelNED[2] = float(pvt.velD)*1e-3;
-      Sdop = float(pvt.sAcc)*1e-2; //has been pre-multiplied by 10
+      Sdop = float(pvt.sAcc)*1e-3; //has been pre-multiplied by 10
       gSpeed = float(pvt.gSpeed)*1e-3;
       headMot = float(pvt.headMot)*1e-5;
       headMot = -headMot;
