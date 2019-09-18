@@ -11,6 +11,7 @@
 #define OP_POS (float) DIST_BW_ACCEL_AXLE*0.6f
 #define OP_FLOW_MAX_SPEED (float) 6.0
 #define OP_FLOW_MAX_V_ERROR (float) 1000.0
+#define deadBand_ROC (float) OP_POS*5.671f
 #define DAMPING (float) 0.4f
 
 #define THROTTLE_OFFSET 1535
@@ -26,12 +27,12 @@
 #define AI1 (float) -0.0022959
 #define AI2 (float) 0.0663019
 #define AI3 (float) -0.01024264
-#define ROLL_RES (float) 2.0
+#define ROLL_RES (float) 5.3
 #define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
 #define MAX_LEARNING_SPEED OP_FLOW_MAX_SPEED/2
 #define MIN_LEARNING_SPEED (float) 0.5f
 #define MAX_GAIN (float) 0.1f
-#define DECAY_TIME (float) 10.0f //time in seconds after which car's model becomes practically useless
+#define DECAY_TIME (float) 1.0f //time in seconds after which car's model becomes practically useless
 #define DECAY_RATE (float) dt/DECAY_TIME 
 #define INITIAL_NOISE (float) 1.0f
 #define MIN_FEEDBACK_FACTOR 0.7
