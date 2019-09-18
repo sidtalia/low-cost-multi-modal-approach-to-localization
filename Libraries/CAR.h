@@ -10,13 +10,16 @@
 #define WHEELBASE (float)0.254 //wheelbase in meters
 #define STEERING_MAX 25 //25 degrees max steering 
 #define STEERING_PULSE_LOCK2CENTER 372 //pulse difference between center steering and steering at full lock. they might be different for your car.
-#define ABSOLUTE_MAX_ACCELERATION 7 //10m/s*s. This is the absolute maximum acceleration the car can handle
-#define MAX_ACCELERATION (float) (0.7*ABSOLUTE_MAX_ACCELERATION)
-#define MAX_ACCELERATION_SQ (float) MAX_ACCELERATION*MAX_ACCELERATION
-//maximum safe acceleration (omnidirectional) that the car can handle without any problems whatsoever 
-//for example braking and turning at the same time. keep this as ~70% of maximum friction force that the tires can provide
-#define SAFE_DECELERATION -0.4*MAX_ACCELERATION //the threshold deceleration for us to start braking. This is ~1/2 of the MAX_ACCELERATION 
-		//because weight shifting under braking is an absolute bitch when it comes to mid-CG rear wheel braking cars (mine for example)
+// #define ABSOLUTE_MAX_ACCELERATION 7 //10m/s*s. This is the absolute maximum acceleration the car can handle
+// #define MAX_ACCELERATION (float) (0.7*ABSOLUTE_MAX_ACCELERATION)
+// #define MAX_ACCELERATION_SQ (float) MAX_ACCELERATION*MAX_ACCELERATION
+// //maximum safe acceleration (omnidirectional) that the car can handle without any problems whatsoever 
+// //for example braking and turning at the same time. keep this as ~70% of maximum friction force that the tires can provide
+// #define SAFE_DECELERATION -0.3*MAX_ACCELERATION //the threshold deceleration for us to start braking. This is ~1/2 of the MAX_ACCELERATION 
+// 		//because weight shifting under braking is an absolute bitch when it comes to mid-CG rear wheel braking cars (mine for example)
+#define DEFAULT_ABS_MAX_ACC (float) 10.0f
+#define DEFAULT_ABS_MIN_ACC (float) 5.0f
+#define DRIFT_RATIO_CUTOFF (float) 0.1f
 
 #define maxValue (int) 2000
 #define minValue (int) 1000
@@ -31,14 +34,13 @@
 #define STEERING_OPEN_GAIN_INV (float) 1.0f/STEERING_OPEN_GAIN
 #define STEERING_CLOSED_GAIN (float)0.7 //hence I use a closed loop gain as well to control the steering. This gain is based on "how fast can your steering turn lock to lock?"
 			//I will make it a little more generic so that ya'll can just put in your servo specs
-			// (slightly inaccurate open + closed) loop control > mathematical model of the system. Why? because life is full of uncertainties.
 #define STEERING_TRUST (float) 0.8
 #define STEERING_TRUST_1 (float) 0.2
 
 #define CRITICAL_YAW (float) 90 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
 #define VARIABLE_GAIN (float) (1/CRITICAL_YAW)
-#define LPF_GAIN_THROTTLE (float) 1.0f/128.321336 //this is for 200Hz sample rate.
-#define C1_THROTTLE (float) 0.984414
+#define LPF_GAIN_THROTTLE (float) 1.0f/637.6 //this is for 200Hz sample rate.
+#define C1_THROTTLE (float) 0.99686
 #define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN)
 
 #define LEARNING_RATE (float) dt
@@ -69,6 +71,8 @@ class controller
 	float steering_bias;
 	float xA[4][2],yA[4][2];//for low pass filter
 	bool IsLearning,IsOversteering;
+	float S_V_Error;
+	float SAFE_DECELERATION,ABSOLUTE_MAX_ACCELERATION,MAX_ACCELERATION,MAX_ACCELERATION_SQ;
 	public:
 	float feedback_factor,Ha;
 	bool control_check;
@@ -88,6 +92,26 @@ class controller
 		steering_bias=0;
 		control_check = false;
 		load = 0;
+		S_V_Error = 0;
+
+		ABSOLUTE_MAX_ACCELERATION = DEFAULT_ABS_MAX_ACC;
+		MAX_ACCELERATION = 0.5*ABSOLUTE_MAX_ACCELERATION;
+		MAX_ACCELERATION_SQ = MAX_ACCELERATION*MAX_ACCELERATION;
+		SAFE_DECELERATION = -0.5*MAX_ACCELERATION;
+	}
+
+	void adjust_g_force_limits(float drift_ratio)
+	{
+		ABSOLUTE_MAX_ACCELERATION -= drift_ratio*dt; //reduce absolute limits
+		if(ABSOLUTE_MAX_ACCELERATION < DEFAULT_ABS_MIN_ACC)
+		{
+			ABSOLUTE_MAX_ACCELERATION = DEFAULT_ABS_MIN_ACC;
+		}
+		//the rest are adjusted accordingly
+		MAX_ACCELERATION = 0.5*ABSOLUTE_MAX_ACCELERATION;
+		MAX_ACCELERATION_SQ = MAX_ACCELERATION*MAX_ACCELERATION;
+		SAFE_DECELERATION = -0.5*MAX_ACCELERATION;
+		return;
 	}
 
 	float LPF(int i,float x)
@@ -136,7 +160,7 @@ class controller
 	{
 		ground_Speed = est_speed; //get external speed : is injected into the LPF model when the car is under retardation
 		Process_noise += DECAY_RATE;
-		if(est_speed>MAX_LEARNING_SPEED or est_speed < MIN_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>speed or OF_V_Error>OP_FLOW_MAX_V_ERROR)//making sure the car doesn't learn when i need the model to provide an estimate
+		if(est_speed < MIN_LEARNING_SPEED or est_speed > MAX_LEARNING_SPEED or throttle<THROTTLE_OFFSET or fabs(est_speed-speed)>speed or OF_V_Error>OP_FLOW_MAX_V_ERROR)//making sure the car doesn't learn when i need the model to provide an estimate
 		{
 			IsLearning = false;
 			return;
@@ -153,13 +177,17 @@ class controller
 
 	float throttle_to_speed(float x)
 	{
-		return A0*pow(x,3) + A1*pow(x,2) + A2*x + A3;
+		float x2 = x*x;
+		float x3 = x2*x;
+		return A0*x3 + A1*x2 + A2*x + A3;
 	}
 
 	float speed_to_throttle(float x)
 	{
 		x *= (feedback_factor + load/ROLL_RES);
-		float output = AI0*pow(x,3) + AI1*pow(x,2) + AI2*x + AI3;
+		float x2 = x*x;
+		float x3 = x2*x;
+		float output = AI0*x3 + AI1*x2 + AI2*x + AI3;
 		output = THROTTLE_RANGE*output + THROTTLE_OFFSET;
 		return output;
 	}
@@ -198,6 +226,7 @@ class controller
 		if(throttle<THROTTLE_OFFSET)
 		{
 			speed = LPF(0,ground_Speed);//inject the estimated speed into the LPF to prime it until the car is on throttle again.
+			speed = ground_Speed;
 			last_Speed = speed;
 			speed_Error = 1e6;
 
@@ -246,7 +275,7 @@ class controller
 	}
 
 	//the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
-	void driver(float C[2], float braking_distance, float V, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
+	void driver(float C[2], float braking_distance, float V, float drift_ratio, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
 	{
 		La = Ax;//transfer information
 		yR = yawRate*DEG2RAD;
@@ -268,12 +297,12 @@ class controller
 		
 		resultant = fast_sqrt(Ax*Ax + Ay*Ay); //resultant horizontal acceleration
 		correction = Curvature_To_Angle(C[0]); //convert radius of curvature to steering angle. this actually depends on wheelbase.
-		yaw_Compensation = RAD2DEG*V*C[0] - yawRate;//Expected Yaw rate - measured Yaw rate. yaw rate error
+		yaw_Compensation = (RAD2DEG*V*C[0] - yawRate) - drift_ratio*RAD2DEG;//Expected Yaw rate - measured Yaw rate and compensating for drift
 		
-		V_target = fast_sqrt(MAX_ACCELERATION/fabs(C[0])); //target maximum velocity
+		V_target = fast_sqrt(ABSOLUTE_MAX_ACCELERATION/fabs(C[0])); //target maximum velocity
 
 		//braking distance is how much distance we have in front of us to slow down.
-		V1 = fast_sqrt(MAX_ACCELERATION/fabs(C[1]));//max speed at the sharpest portion of the turn TODO : OPTIMIZE
+		V1 = fast_sqrt(ABSOLUTE_MAX_ACCELERATION/fabs(C[1]));//max speed at the sharpest portion of the turn TODO : OPTIMIZE
 		deceleration_required = V*(V1-V)/braking_distance; //dv/dt = (dv/dx)*(dx/dt) :P. faster than v^2 = u^2 + 2.a.S. note that this value will be -ve
 		if(deceleration_required < SAFE_DECELERATION)//retardation required is more than the safe braking limit.
 		{
@@ -293,14 +322,20 @@ class controller
 				V_target -= usr_speed_reduction;
 			}
 			correction = (inputs[0] - STEERINGNULL)*STEERING_OPEN_GAIN_INV;
-			if(fabs(usr_steering)>5)
+			if(fabs(usr_steering)>15)
 			{
+				if(usr_steering>0)
+					usr_steering -= 10;
+				else
+					usr_steering += 10;
 				correction = LPF(2,usr_steering);
 			}
 
 			V_error = V_target - V; //speed setpoint - current speed
 			if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
 			{
+				S_V_Error += 0.02f*CLOSED_GAIN*V_error*CONTROL_TIME;
+				Sanity_Check(10,S_V_Error);
 				if(Ha>=0)//if we are already speeding up
 				{
 					backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
@@ -314,9 +349,11 @@ class controller
 					backoff = 0;
 				}
 				throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff - 0.5*fabs(yaw_correction(yaw_Compensation)));
+				
 			}
 			if(V_error< MIN_SPEED_ERROR)//required velocity is less than current velocity.
 			{
+				S_V_Error = 0;
 				if(Ha<=0) //if we are already slowing down
 				{
 					backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
@@ -406,11 +443,16 @@ class controller
 		}
 
 		V_error = V_target - V; //speed setpoint - current speed
+		if(V_error>MAX_ACCELERATION/2)
+		{
+			V_target = V+MAX_ACCELERATION/2;
+			V_error = MAX_ACCELERATION/2;
+		}
 		if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
 		{
 			if(Ha>=0)//if we are already speeding up
 			{
-				backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
+				backoff = 20*(resultant - MAX_ACCELERATION + fabs(drift_ratio));//if the resultant is more than the max acceleration, back the fuck off.
 				if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
 				{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
 					backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
@@ -420,13 +462,13 @@ class controller
 			{
 				backoff = 0;
 			}
-			throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff  - 0.25*fabs(yaw_correction(yaw_Compensation)));
+			throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff );
 		}
 		if(V_error< MIN_SPEED_ERROR)//required velocity is less than current velocity.
 		{
 			if(Ha<=0) //if we are already slowing down
 			{
-				backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
+				backoff = 20*(resultant - MAX_ACCELERATION + fabs(drift_ratio));//same logic as before
 				if(backoff<0)
 				{
 					backoff = 0;
@@ -441,11 +483,17 @@ class controller
 			{
 				deceleration = -MAX_ACCELERATION;
 			}
-			throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff  + 0.25*fabs(yaw_correction(yaw_Compensation)));
+			throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff  );
 		}
 
 		steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
-		throttle = smoother(throttle,last_Throttle,5.0f);
+		throttle = smoother(throttle,last_Throttle,1.0f);
+		
+		if(fabs(drift_ratio)>DRIFT_RATIO_CUTOFF)
+		{
+			adjust_g_force_limits(fabs(drift_ratio));
+		}
+		
 		calc_speed();
 		set_Outputs_Raw(throttle,steer); //defined in INOUT
 
