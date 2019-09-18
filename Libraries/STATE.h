@@ -4,13 +4,14 @@
 #include"PARAMS.h"
 #include"Arduino.h"
 
-#define GPS_UPDATE_RATE (float) 10 //gps update rate in Hz
-#define GPS_UPDATE_TIME (float) 0.1
-#define MIN_GPS_SPEED (float) 4.0 //min speed till which gps is not used for velocity correction
-#define GPS_HDOP_LIM (float)2.5
-#define GPS_GLITCH_RADIUS (float) 3.0 
-#define C1_STATE (float) 0.984414
-#define LPF_GAIN_STATE (float) 1/128.321336
+#define GPS_UPDATE_RATE (float) 10.0f //gps update rate in Hz
+#define GPS_UPDATE_TIME (float) 0.1f
+#define MIN_GPS_SPEED (float) 3.0f //min speed till which gps is not used for velocity correction
+#define MIN_GPS_SAcc (float) 3.0f
+#define GPS_HDOP_LIM (float) 2.5f
+#define GPS_GLITCH_RADIUS (float) 3.0f 
+#define C1_STATE (float) 0.984414f
+#define LPF_GAIN_STATE (float) 1/128.321336f
 
 class STATE
 {
@@ -63,21 +64,21 @@ public :
 	}
 
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
-	void state_update(double lon, double lat, bool tick,double Hdop, float GPS_Velocity, float GPS_SAcc, float gHead, float headAcc, float mh, float mh_Error, float Acceleration,float Vacc, float VError,
+	void state_update(double lon, double lat, bool tick,double Hdop, float GPS_Velocity, float GPS_SAcc, float gHead, float headAcc, float mh, float yawRate, float mh_Error, float Acceleration,float Vacc, float VError,
 						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error,float model[3])
 	{
-		// mh += declination;// COMMENT
-		// if(mh >= M_2PI_DEG) // the mh must be within [0.0,360.0]
-		// {
-		// 	mh -= M_2PI_DEG;
-		// }
-		// if(mh < 0.0f)
-		// {
-		// 	mh += M_2PI_DEG;
-		// }
+		mh += declination;// COMMENT
+		if(mh >= M_2PI_DEG) // the mh must be within [0.0,360.0]
+		{
+			mh -= M_2PI_DEG;
+		}
+		if(mh < 0.0f)
+		{
+			mh += M_2PI_DEG;
+		}
 		float cosmh = cosf(mh*DEG2RAD); //OPTIMIZE
 		float sinmh = sinf(mh*DEG2RAD);
-		float Xacc,Yacc,dS_y,dS_x,dSError,dTheta,tan_phi;
+		float Xacc,Yacc,dS_y,dSError,dTheta;
 		float PosGain_Y, PosGain_X, VelGain;
 		float separation;
 		float shift_X=0,shift_Y=0,innovation=0; // added on 5/5/19
@@ -162,13 +163,13 @@ public :
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
-		if(OF_V_Error>OP_FLOW_MAX_V_ERROR) //if optical flow sensor is out, use the model velocity regardless of speed. 
+		if(OF_V_Error>OP_FLOW_MAX_V_ERROR and GPS_SAcc > MIN_GPS_SAcc) //if optical flow sensor and GPS are both defunct, use the model velocity regardless of speed. 
 		{
 			model[1] = max(model[0],3.0f);
+			VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is speed, [1] is error
+			Vacc = (1.0f - VelGain)*Vacc + VelGain*model[0]; //correction step correcting the velocity from the accelerometer section
+			VelError *= (1.0f - VelGain); //TODO : CHECK THE MODEL
 		}
-		VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is speed, [1] is error
-		Vacc = (1.0f - VelGain)*Vacc + VelGain*model[0]; //correction step correcting the velocity from the accelerometer section
-		VelError *= (1.0f - VelGain); 
 
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
 		if(Velocity>OP_FLOW_MAX_SPEED) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
@@ -202,6 +203,10 @@ public :
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
+		if(model[2] < deadBand_ROC && fabs(model[2]) > 0.3 && OF_V_Error < OP_FLOW_MAX_V_ERROR)//make sure that the sensor readings are correct and the roc is less than deadband roc
+		{
+			OF_X += OF_Y*OP_POS/model[2]; //the '+' sign is there because there is already a '-' in the term that is subtracted.
+		}
 		X += cosmh*OF_Y; // the optical flow can measure movement along the car's X and Y directions.
 		Y += sinmh*OF_Y; //
 
@@ -232,9 +237,6 @@ public :
 			3.2 - 3.4 = -0.2 
 			meaning that my current position estimate is shifted to 5 + (-0.2) = 4.8 meters.
 			*/
-			float temp_X = gps_X; //last gps coordinates. edited on 5/5/19. gps_X
-			float temp_Y = gps_Y; 
-			// Hdop *= Hdop*Hdop;
 			gps_X = last_X = float((lon - iLon)*DEG2METER);// + last_X;//getting the last gps position 
 			gps_Y = last_Y = float((lat - iLat)*DEG2METER);// + last_Y; 
 
@@ -242,7 +244,7 @@ public :
 			lastLat = lat; 
 			
 			separation = distancecalcy(gps_X,past_X,gps_Y,past_Y,0);
-			if(separation> GPS_GLITCH_RADIUS || (Hdop > GPS_HDOP_LIM)) 
+			if(separation > GPS_GLITCH_RADIUS || (Hdop > GPS_HDOP_LIM)) 
 			{
 				position_reset = true;
 				Hdop = 1e7;
@@ -275,17 +277,20 @@ public :
 				//exploiting the relation between speed and position. Now the problem here is that if you're travelling at really slow speeds 
 				//by gps standards, i.e., less than 3m/s, this correction might actually be counter-productive.
 				
-				// head_Innovation = heading - gHead;
-				// if(head_Innovation >= M_PI_DEG) // the head_Innovation must be within [0.0,360.0]
+				// if(fabs(yawRate)<10.0f)
 				// {
-				// 	head_Innovation -= M_2PI_DEG;
+				// 	head_Innovation = heading - gHead;
+				// 	if(head_Innovation >= M_PI_DEG) // the head_Innovation must be within [0.0,360.0]
+				// 	{
+				// 		head_Innovation -= M_2PI_DEG;
+				// 	}
+				// 	if(head_Innovation <= -M_PI_DEG)
+				// 	{
+				// 		head_Innovation += M_2PI_DEG;
+				// 	}
+				// 	head_gain = mh_Error/(mh_Error + headAcc);
+				// 	declination -= head_Innovation*head_gain;
 				// }
-				// if(head_Innovation <= -M_PI_DEG)
-				// {
-				// 	head_Innovation += M_2PI_DEG;
-				// }
-				// head_gain = mh_Error/(mh_Error + headAcc);
-				// declination -= head_Innovation*head_gain;
 			}
 
 			PosError_X *= (1 - PosGain_X); //reduce the position error after each correction from gps.
