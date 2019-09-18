@@ -62,7 +62,7 @@ public:
     	}
     }	
 
-    float get_T(float V,float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float DT)
+    void get_T(float V,float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float DT)
 	{
 		float L1,L2,L3,L4,L;
 		L1 = distancecalcy(Y1,Y2,X1,X2,0);
@@ -174,7 +174,7 @@ public:
 		return x;
 	}
 
-	float X_Y_from_t(float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float t,float &Xret,float &Yret)
+	void X_Y_from_t(float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float t,float &Xret,float &Yret)
 	{
 		float term_1 = (1.0f-t);
 		float t_4 = t*t*t; //24
@@ -187,7 +187,6 @@ public:
 
 	void get_Curvature(float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float Velocity)
 	{
-		float C_max=0, t_max=0;
 		float KX1,KX2,KX3,KY1,KY2,KY3;
 		float h,last_h;//for newton-rhaphson
 		float kappa[2];
@@ -265,13 +264,26 @@ public:
 
 	void generate_Slopes(coordinates c[],int16_t n, bool circuit) //MAKE THIS A REAL TIME THING. EACH ANGLECALCY CALL TAKES 40us!!
 	{
+		float angle1,angle2;
 		for(uint8_t i = 1;i<n-1;i++) //don't tell me you're gonna give me more than 255 waypoints
 		{
-			c[i].slope = ( anglecalcy( c[i-1].X, c[i].X, c[i-1].Y, c[i].Y ) + anglecalcy( c[i].X, c[i+1].X, c[i].Y, c[i+1].Y ) )*0.5;
+			angle1 = anglecalcy( c[i-1].X, c[i].X, c[i-1].Y, c[i].Y );
+			angle2 = anglecalcy( c[i].X, c[i+1].X, c[i].Y, c[i+1].Y );
+			if(fabs(angle1 - angle2) > M_PI_DEG)//this happens when the angles are above and below east (350 and 10 degrees will give an average of 180 not 0)
+			{
+				angle1 -= M_2PI_DEG;
+			}
+			c[i].slope = ( angle1 + angle2 )*0.5;
 		}
 		if(circuit)
 		{
-			c[0].slope = c[n-1].slope =  ( anglecalcy( c[n-2].X, c[n-1].X, c[n-2].Y, c[n-1].Y ) + anglecalcy( c[0].X, c[1].X, c[0].Y, c[1].Y ) )*0.5;
+			angle1 = anglecalcy( c[n-2].X, c[n-1].X, c[n-2].Y, c[n-1].Y );
+			angle2 = anglecalcy( c[0].X, c[1].X, c[0].Y, c[1].Y );
+			if(fabs(angle1 - angle2) > M_PI_DEG)//this happens when the angles are above and below east (350 and 10 degrees will give an average of 180 not 0)
+			{
+				angle1 -= M_2PI_DEG;
+			}
+			c[0].slope = c[n-1].slope =  ( angle1 + angle2 )*0.5;
 		}
 		else
 		{
