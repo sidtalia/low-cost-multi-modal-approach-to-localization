@@ -1,4 +1,3 @@
-
 //You might observe some inconsistency between tabs and spaces between arduino code and the header file code.
 //If that is a problem for you then you are free to edit the code yourself. I don't have the time to be concerned 
 //with formatting as long as the code remains understandable.
@@ -161,7 +160,7 @@ void loop()
   gps.localizer(); //update gps. 12us
   //till here it takes 180us, total at 1170us
   //================SENSOR FUSION===================
-  car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, gps.gSpeed, gps.Sdop, gps.headMot, gps.headAcc, marg.mh, marg.mh_Error, marg.Ha, marg.V, marg.V_Error,
+  car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, gps.gSpeed, gps.Sdop, gps.headMot, gps.headAcc, marg.mh, marg.mh_Error, marg.yawRate, marg.Ha, marg.V, marg.V_Error,
              opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error,marg.encoder_velocity); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
   marg.Velocity_Update(car.Velocity,car.VelError,car.AccBias);//pass the corrected velocity back to marg where it gets low pass filtered too.
@@ -178,7 +177,7 @@ void loop()
   else //this is for the general case
   {
     gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  gps.gSpeed, gps.Sdop, car.PosError_tot , marg.mh_Error, car.VelError, inputs[7],gps.Hdop); //also regulated at 10Hz
+                  marg.encoder_velocity[0], control.feedback_factor, car.PosError_tot , marg.mh_Error, car.VelError, inputs[2],gps.Hdop); //also regulated at 10Hz
 //      gcs.Send_State(MODE, double(car.X), double(car.Y),double(dest_X),double(dest_Y),int_1_x,int_1_y,int_2_x,int_2_y,
 //                    dummy, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
@@ -310,19 +309,19 @@ void loop()
     time_it = micros();
     track.calculate_Curvatures(car.Velocity, car.X, car.Y, car.heading, dest_X, dest_Y, slope ); 
     benchmark = micros()-time_it;
-    control.driver(track.C, track.braking_distance, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs); //send data to driver code. automatically maintains a separate control frequency.
+    control.driver(track.C, track.braking_distance, car.Velocity,car.drift_Angle, marg.yawRate, marg.La, marg.Ha, MODE, inputs); //send data to driver code. automatically maintains a separate control frequency.
     dummy = track.C[0];
   }
   else if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY || MODE==MODE_CONTROL_CHECK)//manual modes
   {
     float dum[] = {0.0,0.0};//dummy
-    control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
+    control.driver(dum, 1000, car.Velocity,car.drift_Angle, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
   else
   {
     float dum[] = {0.0,0.0};//dummy
     MODE = MODE_STANDBY;
-    control.driver(dum, 1000, car.Velocity, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
+    control.driver(dum, 1000, car.Velocity,car.drift_Angle, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
   if(T > dt_micros)//in case the execution time exceeds loop time limit
   {
