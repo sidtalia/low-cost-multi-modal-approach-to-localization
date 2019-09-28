@@ -3,13 +3,13 @@ import numpy as np
 import math as meth
 from scipy.ndimage.filters import gaussian_filter
 
-data = np.load('LUCIFER_log_2019_7_7_8_50.npy')#10,8,42,#23,8,35
+data = np.load('LUCIFER_log_2019_9_15_9_30.npy')#10,8,42,#23,8,35
 # data1 = np.load('LUCIFER_log_gps_2019_2_28_21_54.npy')
 # plt.axis("equal")
 
 coords = data[:,0:4]
 filtered = coords[:,0:2]
-raw = coords[:,2:]
+raw = coords[:,2:]	
 
 lon = filtered[:,0]
 lat = filtered[:,1]
@@ -17,6 +17,7 @@ gps_lon = raw[:,0]
 gps_lat = raw[:,1]
 
 speed = data[:,4]
+heading = data[:,5]
 optical = data[:,8]
 op_shutter_speed = data[:,9]
 op_SQ = data[:,10]
@@ -57,6 +58,12 @@ def LPF(c):
 	coeff = 0.8540806855
 	for i in range(len(c)):
 		x[0] = x[1]
+		# if c[i] < y[1]:
+		# 	GAIN = 4.077683537
+		# 	coeff = 0.5095254495
+		# else:
+		# GAIN = 5.165299770
+		# coeff = 0.6128007881
 		x[1] = c[i]/GAIN
 		y[0] = y[1]
 		y[1] = (x[0] + x[1]) + (coeff*y[0])
@@ -70,11 +77,11 @@ def fit(x,c):
 	return c[0]*x**3 + c[1]*x**2 + c[2]*x + c[3]
 
 # # position plot : 
-plt.plot((lon[:] - lon[0]),(lat[:]-lat[0]), label='filtered')
-plt.xlabel('X (m)')
-plt.ylabel('Y (m)')
-plt.plot(111392*(gps_lon - gps_lon[0] ),111392*(gps_lat - gps_lat[0]), label='raw gps')
-
+# plt.plot((lon[:] - lon[0]),(lat[:]-lat[0]), label='filtered')
+# plt.xlabel('X (m)')
+# plt.ylabel('Y (m)')
+# plt.plot(111392*(gps_lon - gps_lon[0] ),111392*(gps_lat - gps_lat[0]), label='raw gps')
+# plt.axis('equal')
 
 
 dist_cord = 0
@@ -89,7 +96,7 @@ for i in range(1,len(lon)):
 	dist_gps += meth.sqrt((gps_lon[i] - gps_lon[i-1])**2 + ( gps_lat[i] - gps_lat[i-1])**2 )
 	dist_vel += 0.1*(speed[i]+speed[i-1])/2
 
-print(dist_vel,dist_cord,dist_gps)
+# print(dist_vel,dist_cord,dist_gps)
 
 
 #modelling speed : 
@@ -110,6 +117,35 @@ print(dist_vel,dist_cord,dist_gps)
 # print(fit(inp,c))
 # plt.plot(t_,model,label='fit')
 
+# exec_time = np.array([1550,1600,1640,1690,1750,1810])
+# exec_time -= 1535
+# exec_time = exec_time/(1810-1535)
+# # # print(exec_time)
+# speed = np.array([1,4,6.1,8.3,10.4,12])
+# plt.scatter(speed,exec_time)
+# c = np.polyfit(speed,exec_time,3)
+# speed_target = np.arange(0,12.0,0.01)
+# model = fit(speed_target,c)
+# print(c) #print coeffs
+# plt.xlabel('target_speed')
+# plt.ylabel('throttle')
+# plt.plot(speed_target,model,label='fit')
+
+
+
+def tune(speed, optical):
+	feedback = 1
+	process_noise = 0.1
+	decay_rate = 0.1
+	est_error = 0.05
+	dt = 0.1
+	for i in range(len(speed)-1):
+		if(speed[i]<3):
+			gain = process_noise/(process_noise+est_error)
+			feedback += gain*(optical[i]-speed[i])
+			process_noise *= (1-gain)
+		optical[i+1] /= feedback
+	return optical
 
 
 # for testing which low pass filter works for us : LUCIFER_log_2019_3_22_12_8.npy
@@ -118,18 +154,26 @@ print(dist_vel,dist_cord,dist_gps)
 # t = t[:-40]
 # print(len(t))
 # speed = gaussian_filter(speed,sigma=2)
-# optical = gaussian_filter(optical,sigma=2)
+# optical = gaussian_filter(optical,sigma=1)
 # # plt.title('without correction')
-# plt.plot(t,speed,label='filtered speed')
-# plt.plot(t,op_SQ/20,label='SQ')
-# plt.plot(t,optical,label='OF_X')
-# plt.plot(t,gaussian_filter(op_SQ,sigma=5),label='dS_x')
+plt.plot(t,speed,label='filtered speed')
+# plt.scatter(exec_time,speed)
+# plt.plot(t[:-1],optical[1:],label='gps')
+# gps = optical[1:]
+# sped = speed[:-1]
+# gain = op_SQ[1:]*10/(op_SQ[1:]*10+1)
+# filt = gps*(1-gain) + gain*sped
+# plt.plot(t[:-1],filt,label='fused')
+# plt.plot(t[:-1],op_SQ[1:]*10,label='Sdop')
+plt.plot(t,optical,label='raw')
+# plt.ylim((0,10))
+plt.plot(t,op_SQ,label='dS_x')
 # plt.plot(t,Hdop,label='Hdop')
 # plt.plot(t,gaussian_filter(op_SQ/20,sigma=1),label='SQ')
 
 # plt.ylabel('speed in m/s')
 # plt.xlabel('time in seconds')
-# plt.plot(t,LPF(optical),label='LOW passed')
+# plt.plot(t,LPF(optical*(6/7)),label='LOW passed')
 
 # for optical flow testing :
 # op_SQ = gaussian_filter(op_SQ,sigma=10) 
