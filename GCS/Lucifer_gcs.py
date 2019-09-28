@@ -53,7 +53,7 @@ if(connection == False):
 	run = False
 
 file_name = 'LUCIFER_offsets_0.npy'
-waypoint_file = 'LUCIFER_WP_1.npy'
+waypoint_file = 'LUCIFER_WP.npy'
 log_file = 'LUCIFER_log_0.npy'
 saved = False
 
