@@ -4,8 +4,8 @@ volatile unsigned long timer[5];
 volatile byte last_channel[6], tick = 0;
 volatile int input[11]={1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1050};
 volatile int delT;
-volatile bool servoWrite = false,takeover = false;
-long failsafe;
+volatile bool servoWrite = false,takeover = false,ultrasonic = false;
+long failsafe,usr_timer;
 
 Servo motor, steer, usr;
 
@@ -77,7 +77,21 @@ void loop()
     steer.attach(3);
     Serial.print("in");
   }
-  usr.writeMicroseconds(input[10]);//mandatory step
+
+  if(ultrasonic)
+  {
+    usr_timer = millis();
+    ultrasonic = false;
+  }
+  if(millis()-usr_timer < 200)
+  {
+    usr.writeMicroseconds(input[10]);
+  }
+  else
+  {
+    usr.writeMicroseconds(1050);
+  }
+  
   while( micros() - timer < 20000);
 }
 
@@ -139,6 +153,7 @@ ISR(PCINT0_vect)
   {
     last_channel[3]=0;
     input[10]=timer[0]-timer[4];
+    ultrasonic = true; // set the flag
   }
 }
 
