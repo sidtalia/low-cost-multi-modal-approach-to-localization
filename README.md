@@ -16,6 +16,7 @@ The localization is supposed to happen in open outdoor environments using a filt
 The odometry is obtained by fusing data from GPS, optical flow, IMU+compass and also from a simplistic model of the car's propulsion system, although the last method is kept as a last-resort under multiple sensor failures. The state estimator also exploits the non-holonomic constraints. Using multiple sources of information allows the car to operate with a high degree of accuracy (long term) when all the sensors are operating in peak condition and with an acceptable level of accuracy when one or two of the sensors are not in peak condition. The odometry assumes that the car is moving on a flat, horizontal plane (fair assumption for a car that has a ride height of 15 mm and is unlikely to go off-roading).
 
 Test for localization accuracy: https://youtu.be/GbBbyxaOqpI
+Research paper (pre-print) for the same: https://drive.google.com/file/d/17Mg2iwEAEu-QG66P9JCzuJ3Squ-TULqJ/view?usp=sharing (Presented, RDCAPE 2019)
 
 
 ### Control
