@@ -11,6 +11,10 @@ public:
 	double longitude,latitude;
 	float X,Y;
 	float slope;
+	float next_gap;
+	float next_Kappa;
+	float next_X_max;
+	float next_Y_max;
 	void calcXY(double iLon, double iLat)
 	{
 		X = float(DEG2METER*(longitude - iLon));
@@ -55,11 +59,8 @@ public:
     	//and fast direction changes
     	get_Curvature(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY, V);//get the curvature
     	//if C[1] is less than C[0] then the curve is getting sharper and pre-mature braking is required, if not, no need to have pre-mature braking.
-    	braking_distance = distancecalcy( X, X_max, Y, Y_max,0); //braking distance. 
-    	if(braking_distance<0.1f)
-    	{
-    		braking_distance = 0.1f;
-    	}
+    	braking_distance = distancecalcy( X, X_max, Y, Y_max,0); //braking distance.
+    	braking_distance = max(braking_distance - 1,0.1);
     }	
 
     void get_T(float V,float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float DT)
@@ -232,7 +233,7 @@ public:
 		C[1] = kappa[0];
 		X_max = X[0];
 		Y_max = Y[0];
-		gap = distancecalcy(X[0],X[1],Y[0],Y[1],0);
+		gap = max(distancecalcy(X[0],X[1],Y[0],Y[1],0),0.1);
 		if(gap>0.1f && fabs(kappa[0])>0.001f && fabs(kappa[1])>0.001f)
 		{
 			gap_inverse = 1.0f/gap;
@@ -293,5 +294,56 @@ public:
 																				// the slope is the same as the line joining the last 2 points
 		}
 	}
+
+	void get_fixed_maximas(coordinates c[], int16_t n, bool circuit)
+	{
+		uint8_t s,f;
+		for(uint8_t i = 0; i < n-1; i++)
+		{
+			s = i%n; //start point 
+			f = (i+1)%n; //finish point
+			calculate_Curvatures(0, c[s].X, c[s].Y, c[s].slope, c[f].X, c[f].Y, c[f].slope);
+			c[i].next_gap = braking_distance;
+			c[i].next_Kappa = C[1];
+			c[i].next_X_max = X_max;
+			c[i].next_Y_max = Y_max;
+		}
+		if(circuit)
+		{
+			calculate_Curvatures(0, c[0].X, c[0].Y, c[0].slope, c[1].X, c[1].Y, c[1].slope);
+			c[n-1].next_gap = braking_distance;
+			c[n-1].next_Kappa = C[1];
+			c[n-1].next_X_max = X_max;
+			c[n-1].next_Y_max = Y_max;	
+		}
+		else
+		{
+			c[n-1].next_gap = 100;
+			c[n-1].next_Kappa = 0;
+			c[n-1].next_X_max = c[n-1].X;
+			c[n-1].next_Y_max = c[n-1].Y;		
+		}
+	}
+
+	void confirm_maxima_priority(coordinates c, float &cur_X_max, float &cur_Y_max, float &cur_Kappa, float &cur_braking_distance)
+	{
+		float condition, sqrt_K1_K2_inv, K1_inv, gap_inverse;
+		float gap = max(distancecalcy(cur_X_max, c.next_X_max, cur_Y_max, c.next_Y_max, 0), 0.1);
+		if(gap>0.1f && fabs(c.next_Kappa)>0.001f && fabs(cur_Kappa)>0.001f)
+		{
+			gap_inverse = 1.0f/gap;
+			K1_inv = 1.0f/fabs(cur_Kappa);
+			sqrt_K1_K2_inv = 1/(fast_sqrt(fabs(cur_Kappa*c.next_Kappa)));
+			condition = gap_inverse*(K1_inv - sqrt_K1_K2_inv);
+			if(condition>1)
+			{
+				cur_Kappa = c.next_Kappa;
+				cur_X_max = c.next_X_max;
+				cur_Y_max = c.next_Y_max;
+				cur_braking_distance += gap;
+
+			}
+		}
+	}	
 };
 #endif
