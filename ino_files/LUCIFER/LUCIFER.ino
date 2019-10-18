@@ -172,14 +172,14 @@ void loop()
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
   if(reflect_WP)//if waypoints are to be sent back, this remains true
   {
-    reflect_WP = !(gcs.Send_WP(c[point].X,c[point].Y,point)); //this function will return true when waypoints have been sent back
+    reflect_WP = !(gcs.Send_WP(c[point].X,c[point].Y,c[point].slope,point)); //this function will return true when waypoints have been sent back
   }
   else //this is for the general case
   {
-    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  marg.encoder_velocity[0], control.feedback_factor, car.PosError_tot , marg.mh_Error, car.VelError, inputs[2],gps.Hdop); //also regulated at 10Hz
-//      gcs.Send_State(MODE, double(car.X), double(car.Y),double(dest_X),double(dest_Y),int_1_x,int_1_y,int_2_x,int_2_y,
-//                    dummy, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
+//    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+//                  marg.encoder_velocity[0], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop); //also regulated at 10Hz
+      gcs.Send_State(MODE, double(car.X), double(car.Y),double(track.X_max),double(track.Y_max),track.C[1],track.braking_distance,marg.mh,0,
+                    car.Velocity, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
 //                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
   }
@@ -242,10 +242,11 @@ void loop()
     }
     if(point < num_waypoints && num_waypoints !=0)
     {
-      float dummy_X,dummy_Y;
-      gcs.Get_WP(dummy_X, dummy_Y,point); //get the coordinates
+      float dummy_X,dummy_Y,dummy_Slope;
+      gcs.Get_WP(dummy_X, dummy_Y,dummy_Slope,point); //get the coordinates
       c[point].X = dummy_X;
       c[point].Y = dummy_Y;
+      c[point].slope = dummy_Slope;
       c[point].calcLatLon(car.iLon, car.iLat); // calculate lat lon just in case
       if(point == num_waypoints-1)
       {
@@ -254,7 +255,8 @@ void loop()
           circuit = true;
           c[point].copy(c[0]);
         }
-        track.generate_Slopes(c,num_waypoints, circuit); // generate the slopes! happens only once so I reset the timer 
+//        track.generate_Slopes(c,num_waypoints, circuit); // generate the slopes! happens only once so I reset the timer 
+        track.get_fixed_maximas(c, num_waypoints, circuit);
         dest_X = c[0].X;
         dest_Y = c[0].Y;
         slope  = c[0].slope;
@@ -308,6 +310,7 @@ void loop()
   {
     time_it = micros();
     track.calculate_Curvatures(car.Velocity, car.X, car.Y, car.heading, dest_X, dest_Y, slope ); 
+    track.confirm_maxima_priority(c[sentinel], track.X_max, track.Y_max, track.C[1], track.braking_distance);
     benchmark = micros()-time_it;
     control.driver(track.C, track.braking_distance, car.Velocity,car.drift_Angle, marg.yawRate, marg.La, marg.Ha, MODE, inputs); //send data to driver code. automatically maintains a separate control frequency.
     dummy = track.C[0];
