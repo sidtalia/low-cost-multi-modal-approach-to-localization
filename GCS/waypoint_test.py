@@ -28,9 +28,12 @@ def anglecalcy(x1,x2,y1,y2):
 # data_X = data[:,0]
 # data_Y = data[:,1]
 
-X = np.array([0, 3, 6, 3, 1,-1,  1, 2, 4, 2, 1,-0.5,-1.4,-2,-2.7,-4,-4.5,-6.5,-3,0])
-Y = np.array([0, 0, 3, 6, 6,4.5, 3, 3, 2, 1, 1, 1.4, 2.5, 4, 5.4, 6, 6.0, 3.0, 0,0])
-theta = 0/57.3
+# X = np.array([0, 3, 6, 3, 1,-1,  1, 2, 4, 2, 1,-0.5,-1.4,-2,-2.7,-4,-4.5,-6.5,-3,0])
+# Y = np.array([0, 0, 3, 6, 6,4.5, 3, 3, 2, 1, 1, 1.4, 2.5, 4, 5.4, 6, 6.0, 3.0, 0,0])
+X = 1.5*np.array([0, 3, 6, 4,3.5, 0,-3.5,-4, -6,-3,0])
+Y = 1.25*np.array([0, 0, 3, 6,  6, 2,   6, 6,  3, 0,0])
+
+theta = 30/57.3
 rot_X = m.cos(theta)*X - m.sin(theta)*Y
 rot_Y = m.sin(theta)*X + m.cos(theta)*Y
 
@@ -100,11 +103,11 @@ plt.scatter(bx,by)
 # plt.scatter(int2[:,0],int2[:,1],label='int2')
 plt.legend()
 
-# wp = []
-# for i in range(len(X)):
-# 	wp.append([X[i],Y[i]])
-# wp = np.array(wp)
-# np.save('LUCIFER_WP_4.npy',wp)
+wp = []
+for i in range(len(X)):
+	wp.append([X[i],Y[i],slope[i]])
+wp = np.array(wp)
+np.save('LUCIFER_WP_slopes.npy',wp)
 # data = np.load('LUCIFER_WP_4.npy')
 # print(data)
 
