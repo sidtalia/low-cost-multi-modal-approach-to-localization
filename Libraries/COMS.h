@@ -91,21 +91,23 @@ public:
 		write_To_Port(T,2);
 	}//42 bytes sent
 
-	void Get_WP(float &X, float &Y,int16_t &point)
+	void Get_WP(float &X, float &Y, float &slope, int16_t &point)
 	{
 		received_stamp = millis();
 		X = float(int16_t(Serial.read()|int16_t(Serial.read()<<8) ) )*1e-2; //coordinates transfered wrt to origin, converted 
 		Y = float(int16_t(Serial.read()|int16_t(Serial.read()<<8) ) )*1e-2; //coordinates transfered wrt to origin, converted 
+		slope = float(int16_t(Serial.read()|int16_t(Serial.read()<<8) ) )*1e-2;
 		point = int16_t(Serial.read()|int16_t(Serial.read()<<8) );	
 	}
 
-	bool Send_WP(float X, float Y,int16_t point)
+	bool Send_WP(float X, float Y, float slope,int16_t point)
 	{
 		if(millis() - transmit_stamp > 100)
 		{
 			transmit_stamp = millis();
 			int x = int16_t(X*1e2);
 			int y = int16_t(Y*1e2);
+			int m = int16_t(slope*1e2);
 
 			write_To_Port(START_SIGN,2);
 			write_To_Port(8,2);
@@ -113,6 +115,7 @@ public:
 			write_To_Port(0x01,2);
 			write_To_Port(x,2);
 			write_To_Port(y,2);
+			write_To_Port(m,2);
 			write_To_Port(point,2);
 			return 1;
 		}
