@@ -53,7 +53,7 @@ if(connection == False):
 	run = False
 
 file_name = 'LUCIFER_offsets_0.npy'
-waypoint_file = 'LUCIFER_WP.npy'
+waypoint_file = 'LUCIFER_WP_slopes.npy'
 log_file = 'LUCIFER_log_0.npy'
 saved = False
 
@@ -106,7 +106,8 @@ def send_heartbeat(car):
 		n = waypoint_length - point_count
 		X = int(waypoint_list[n][0]*1e2)
 		Y = int(waypoint_list[n][1]*1e2)
-		message = list(np.array([X,Y,n],dtype='int16'))
+		slope = int(waypoint_list[n][2]*1e2)
+		message = list(np.array([X,Y,slope,n],dtype='int16'))
 		print(message)
 		message_id = np.concatenate((message_id,message),axis=0)
 	if(point_count<0 and Tx_ID == WP_ID):
@@ -171,8 +172,8 @@ def readSerial():
 				received_wp_list.append(buf)
 				n = waypoint_length-point_count
 				check_wp = waypoint_list[n]
-				if(m.fabs(buf[0] - check_wp[0]*100) > 2 or m.fabs(buf[1]-check_wp[1]*100)>2 or buf[2]!=n):
-					print("error",buf[:3],waypoint_list[n],n)
+				if(m.fabs(buf[0] - check_wp[0]*100) > 2 or m.fabs(buf[1]-check_wp[1]*100)>2 or buf[3]!=n):
+					print("error",buf[:4],waypoint_list[n],n)
 				else:
 					print("got wp")
 					point_count -= 1
@@ -328,7 +329,7 @@ def set_origin():
 def mark():
 	global waypoint_list
 	global car
-	point = np.array([car.X,car.Y])
+	point = np.array([car.X,car.Y,car.heading])
 	waypoint_list.append(point)
 
 def save_wp():
