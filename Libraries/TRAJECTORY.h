@@ -60,7 +60,7 @@ public:
     	get_Curvature(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY, V);//get the curvature
     	//if C[1] is less than C[0] then the curve is getting sharper and pre-mature braking is required, if not, no need to have pre-mature braking.
     	braking_distance = distancecalcy( X, X_max, Y, Y_max,0); //braking distance.
-    	braking_distance = max(braking_distance - 1,0.1);
+    	braking_distance = max(braking_distance,0.1);
     }	
 
     void get_T(float V,float X1,float Y1,float X2,float Y2,float X3,float Y3,float X4,float Y4,float DT)
@@ -257,10 +257,10 @@ public:
 		{
 			d = CONSTRUCT_LENGTH;
 		}
-		int1[0] = X1 + 0.4*my_cos(slope1*DEG2RAD)*d; //57us
-		int1[1] = Y1 + 0.4*my_sin(slope1*DEG2RAD)*d; //67
-		int2[0] = X2 - 0.4*my_cos(slope2*DEG2RAD)*d; //57us
-		int2[1] = Y2 - 0.4*my_sin(slope2*DEG2RAD)*d; //67
+		int1[0] = X1 + 0.35*my_cos(slope1*DEG2RAD)*d; //57us
+		int1[1] = Y1 + 0.35*my_sin(slope1*DEG2RAD)*d; //67
+		int2[0] = X2 - 0.35*my_cos(slope2*DEG2RAD)*d; //57us
+		int2[1] = Y2 - 0.35*my_sin(slope2*DEG2RAD)*d; //67
 	}//248us
 
 	void generate_Slopes(coordinates c[],int16_t n, bool circuit) //MAKE THIS A REAL TIME THING. EACH ANGLECALCY CALL TAKES 40us!!
