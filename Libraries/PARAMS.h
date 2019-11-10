@@ -38,7 +38,7 @@
 #define MIN_FEEDBACK_FACTOR 0.7
 #define MIN_SPEED_ERROR (float) -0.5f
 
-#define DECLINATION (float) 0.0f//-5.0f
+#define DECLINATION (float) -5.0f
 #define GPS_GLITCH_SPEED (float) 15.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
@@ -85,6 +85,6 @@
 
 #define COM_BAUD 230400
 // #define GPS_BAUD 230400
-#define JEVOIS_BAUD 9600
+#define JEVOIS_BAUD 115200
 
 #endif
