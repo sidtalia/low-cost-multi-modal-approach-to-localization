@@ -20,7 +20,6 @@
 #include <jevois/Util/Utils.H>
 #include <jevois/Image/RawImageOps.H>
 #include <jevois/Debug/Timer.H>
-
 #include <linux/videodev2.h>
 #include <jevoisbase/Components/ObjectMatcher/ObjectMatcher.H>
 #include <opencv2/imgcodecs.hpp>
@@ -176,8 +175,6 @@ class ObjectDetect : public jevois::StdModule,
     ObjectDetect(std::string const & instance) : jevois::StdModule(instance), itsDist(1.0e30)
     { 
       itsMatcher = addSubComponent<ObjectMatcher>("surf");
-      m_serial = addSubComponent<jevois::Serial>("myserial",jevois::UserInterface::Type::Hard);
-      m_serial->devname::set("/dev/ttyS0");
     }
 
     // ####################################################################################################
@@ -212,29 +209,10 @@ class ObjectDetect : public jevois::StdModule,
 
       // Send message about object if a good one was found:
       if (itsDist < 100.0 && itsCorners.size() == 4)
-	sendSerialContour2D(itsGrayImg.cols, itsGrayImg.rows, itsCorners, itsMatcher->traindata(itsTrainIdx).name);
+  sendSerialContour2D(itsGrayImg.cols, itsGrayImg.rows, itsCorners, itsMatcher->traindata(itsTrainIdx).name);
 
       // Show processing fps to log:
       timer.stop();
-    }
-
-    void read_serial()
-    {
-      uint8_t c[2];
-      while(m_serial->read(c,8)>0)
-      {
-        if(c[0]==0x00 && c[1]==0xFE && c[2]==0x00 && c[3]==64)
-        {
-          uint8_t input[4];
-          if(m_serial->read(input,4)>0)
-          {
-            data[0] = float(int16_t(input[1]|int16_t(input[0])))*1e-2;
-            data[1] = float(int16_t(input[3]|int16_t(input[2])))*1e-2;
-          }
-          return;
-        }
-      }
-      return;
     }
     // ####################################################################################################
     //! Processing function with USB output
@@ -242,7 +220,6 @@ class ObjectDetect : public jevois::StdModule,
     virtual void process(jevois::InputFrame && inframe, jevois::OutputFrame && outframe) override
     {
       static jevois::Timer timer("processing", 100, LOG_DEBUG);
-      read_serial();
       // Wait for next available camera image. Any resolution ok, but require YUYV since we assume it for drawings:
       jevois::RawImage inimg = inframe.get(); unsigned int const w = inimg.width, h = inimg.height;
       inimg.require("input", w, h, V4L2_PIX_FMT_YUYV);
@@ -328,7 +305,7 @@ class ObjectDetect : public jevois::StdModule,
 
       // Show processing fps:
       std::string const & fpscpu = timer.stop();
-      jevois::rawimage::writeText(outimg, fpscpu, 3, h - 13, jevois::yuyv::White);
+      jevois::rawimage::writeText(outimg, std::to_string(data[7]), 3, h - 13, jevois::yuyv::White);
       
       // Send the output image with our processing results to the host over USB:
       outframe.send();
@@ -339,55 +316,68 @@ class ObjectDetect : public jevois::StdModule,
     // ####################################################################################################
     void parseSerial(std::string const & str, std::shared_ptr<jevois::UserInterface> s) override
     {
-      // std::vector<std::string> tok = jevois::split(str);
-      // if (tok.empty()) throw std::runtime_error("Unsupported empty module command");
-      // std::string const dirname = absolutePath(itsMatcher->traindir::get());
+      std::vector<std::string> tok = jevois::split(str);
+      if (tok.empty()) throw std::runtime_error("Unsupported empty module command");
+      std::string const dirname = absolutePath(itsMatcher->traindir::get());
 
-      // if (tok[0] == "save")
-      // {
-      //   if (tok.size() == 1) throw std::runtime_error("save command requires one <name> argument");
+      if (tok[0] == "save")
+      {
+        if (tok.size() == 1) throw std::runtime_error("save command requires one <name> argument");
         
-      //   // Crop itsGrayImg using the desired window:
-      //   floatpair const wi = win::get();
-      //   int ww = (wi.first * 0.01F) * itsGrayImg.cols;
-      //   int wh = (wi.second * 0.01F) * itsGrayImg.rows;
-      //   cv::Rect cr( (itsGrayImg.cols - ww) / 2, (itsGrayImg.rows - wh) / 2, ww, wh);
+        // Crop itsGrayImg using the desired window:
+        floatpair const wi = win::get();
+        int ww = (wi.first * 0.01F) * itsGrayImg.cols;
+        int wh = (wi.second * 0.01F) * itsGrayImg.rows;
+        cv::Rect cr( (itsGrayImg.cols - ww) / 2, (itsGrayImg.rows - wh) / 2, ww, wh);
       
-      //   // Save it:     
-      //   cv::imwrite(dirname + '/' + tok[1] + ".png", itsGrayImg(cr));
-      //   s->writeString(tok[1] + ".png saved and trained.");
-      // }
-      // else if (tok[0] == "del")
-      // {
-      //   if (tok.size() == 1) throw std::runtime_error("del command requires one <name> argument");
-      //   if (std::remove((dirname + '/' + tok[1] + ".png").c_str()))
-      //     throw std::runtime_error("Failed to delete " + tok[1] + ".png");
-      //   s->writeString(tok[1] + ".png deleted and forgotten.");
-      // }
-      // else if (tok[0] == "list")
-      // {
-      //   std::string lst = jevois::system("/bin/ls \"" + dirname + '\"');
-      //   std::vector<std::string> files = jevois::split(lst, "\\n");
-      //   for (std::string const & f : files) s->writeString(f);
-      //   return;
-      // }
-      // else throw std::runtime_error("Unsupported module command [" + str + ']');
+        // Save it:     
+        cv::imwrite(dirname + '/' + tok[1] + ".png", itsGrayImg(cr));
+        s->writeString(tok[1] + ".png saved and trained.");
+      }
+      else if (tok[0] == "del")
+      {
+        if (tok.size() == 1) throw std::runtime_error("del command requires one <name> argument");
+        if (std::remove((dirname + '/' + tok[1] + ".png").c_str()))
+          throw std::runtime_error("Failed to delete " + tok[1] + ".png");
+        s->writeString(tok[1] + ".png deleted and forgotten.");
+      }
+      else if (tok[0] == "list")
+      {
+        std::string lst = jevois::system("/bin/ls \"" + dirname + '\"');
+        std::vector<std::string> files = jevois::split(lst, "\\n");
+        for (std::string const & f : files) s->writeString(f);
+        return;
+      }
+      else if (tok[0] == "car")
+      {
+        uint8_t c[22];
+        uint8_t i;
+        for(i=0;i<22;i++)
+        {
+          c[i] = str[i+4];
+        }
+        for(i=0;i<11;i++)
+        {
+          data[i] = float(int16_t(c[i]|int16_t(c[i+1]<<8) ))*1e-2;
+        }
+      }
+      else throw std::runtime_error("Unsupported module command [" + str + ']');
 
-      // // If we get here, we had a successful save or del. We need to nuke our matcher and re-load it to retrain:
-      // // First, wait until our component is not computing anymore:
-      // try { if (itsKPfut.valid()) itsKPfut.get(); } catch (...) { }
+      // If we get here, we had a successful save or del. We need to nuke our matcher and re-load it to retrain:
+      // First, wait until our component is not computing anymore:
+      try { if (itsKPfut.valid()) itsKPfut.get(); } catch (...) { }
 
-      // // Detach the sub:
-      // removeSubComponent(itsMatcher);
+      // Detach the sub:
+      removeSubComponent(itsMatcher);
 
-      // // Nuke it:
-      // itsMatcher.reset();
+      // Nuke it:
+      itsMatcher.reset();
 
-      // // Nuke any other old data:
-      // itsKeypoints.clear(); itsDescriptors = cv::Mat(); itsDist = 1.0e30; itsCorners.clear();
+      // Nuke any other old data:
+      itsKeypoints.clear(); itsDescriptors = cv::Mat(); itsDist = 1.0e30; itsCorners.clear();
       
-      // // Instantiate a new one, it will load the training data:
-      // itsMatcher = addSubComponent<ObjectMatcher>("surf");
+      // Instantiate a new one, it will load the training data:
+      itsMatcher = addSubComponent<ObjectMatcher>("surf");
     }
 
     // ####################################################################################################
@@ -402,14 +392,13 @@ class ObjectDetect : public jevois::StdModule,
     
   private:
     std::shared_ptr<ObjectMatcher> itsMatcher;
-    std::shared_ptr<jevois::Serial> m_serial;
     std::future<void> itsKPfut;
     cv::Mat itsGrayImg;
     std::vector<cv::KeyPoint> itsKeypoints;
     cv::Mat itsDescriptors;
     size_t itsTrainIdx;
     double itsDist;
-    float data[2];
+    float data[11];
     std::vector<cv::Point2f> itsCorners;
 };
 
