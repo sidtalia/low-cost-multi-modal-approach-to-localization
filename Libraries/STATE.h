@@ -7,9 +7,9 @@
 #define GPS_UPDATE_RATE (float) 10.0f //gps update rate in Hz
 #define GPS_UPDATE_TIME (float) 0.1f
 #define MIN_GPS_SPEED (float) 3.0f //min speed till which gps is not used for velocity correction
-#define MIN_GPS_SAcc (float) 3.0f
+#define MAX_GPS_SAcc (float) 3.0f
 #define GPS_HDOP_LIM (float) 2.5f
-#define GPS_GLITCH_RADIUS (float) 3.0f 
+#define GPS_GLITCH_RADIUS (float) 5.0f 
 #define C1_STATE (float) 0.984414f
 #define LPF_GAIN_STATE (float) 1/128.321336f
 
@@ -163,7 +163,7 @@ public :
 		//POSITION ESTIMATE USING THE ACCELEROMETER (WORKING CONTINUED)
 		//Acceleration bias is removed in the MPU9250 code itself(the name of the library is 9150 but it can be used with 9250 as well).
 		//CORRECTING VELOCITY FIRST
-		if(OF_V_Error>OP_FLOW_MAX_V_ERROR and GPS_SAcc > MIN_GPS_SAcc) //if optical flow sensor and GPS are both defunct, use the model velocity regardless of speed. 
+		if(OF_V_Error>OP_FLOW_MAX_V_ERROR and GPS_SAcc > MAX_GPS_SAcc) //if optical flow sensor and GPS are both defunct, use the model velocity regardless of speed. 
 		{
 			model[1] = max(model[0],3.0f);
 			VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is speed, [1] is error
@@ -203,7 +203,7 @@ public :
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
-		if(model[2] < deadBand_ROC && fabs(model[2]) > 0.3 && OF_V_Error < OP_FLOW_MAX_V_ERROR)//make sure that the sensor readings are correct and the roc is less than deadband roc
+		if(fabs(model[2]) < deadBand_ROC && fabs(model[2]) > 0.3 && OF_V_Error < OP_FLOW_MAX_V_ERROR)//make sure that the sensor readings are correct and the roc is less than deadband roc
 		{
 			OF_X += OF_Y*OP_POS/model[2]; //the '+' sign is there because there is already a '-' in the term that is subtracted.
 		}
@@ -249,6 +249,8 @@ public :
 				position_reset = true;
 				Hdop = 1e7;
 			}
+			if(Hdop<1.2f)
+				Hdop *= 0.5;
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
 			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
 			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
