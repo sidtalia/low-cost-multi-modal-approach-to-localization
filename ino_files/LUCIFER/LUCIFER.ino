@@ -20,6 +20,7 @@
 #include"CAR.h"
 #include"PARAMS.h"
 #include"TRAJECTORY.h"
+#include"COMPANION.h"//CHANGED
 
 MPU9150 marg;
 OPFLOW opticalFlow;
@@ -28,6 +29,7 @@ STATE car;
 GCS gcs;
 trajectory track;
 controller control;
+JEVOIS jevois; //CHANGED
 
 bool GPS_FIX;
 byte MODE = MODE_STANDBY;
@@ -169,6 +171,8 @@ void loop()
 //transfer the bias. this is pretty much the reason why the update function does not take arguments by reference
   //till here it takes 120us, total at 1330us
   //================HANDLE COMMUNICATIONS================
+
+  jevois.Send_State(MODE, car.X, car.Y, marg.mh, dest_X, dest_Y, slope, marg.pitch, marg.roll, marg.yawRate, car.Velocity);//CHANGED
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
   if(reflect_WP)//if waypoints are to be sent back, this remains true
   {
@@ -176,10 +180,10 @@ void loop()
   }
   else //this is for the general case
   {
-//    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-//                  marg.encoder_velocity[0], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop); //also regulated at 10Hz
-      gcs.Send_State(MODE, double(car.X), double(car.Y),double(track.X_max),double(track.Y_max),track.C[1],track.braking_distance,marg.mh,0,
-                    car.Velocity, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
+    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+                  inputs[7], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop); //also regulated at 10Hz
+//      gcs.Send_State(MODE, double(car.X), double(car.Y),double(track.X_max),double(track.Y_max),track.C[1],track.braking_distance,marg.mh,0,
+//                    car.Velocity, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
 //                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
   }
