@@ -175,6 +175,10 @@ class ObjectDetect : public jevois::StdModule,
     ObjectDetect(std::string const & instance) : jevois::StdModule(instance), itsDist(1.0e30)
     { 
       itsMatcher = addSubComponent<ObjectMatcher>("surf");
+      counter = 0;
+      IsRecording = false;
+      for(uint8_t i=0;i<11;i++)
+        data[i] = 0;
     }
 
     // ####################################################################################################
@@ -305,8 +309,8 @@ class ObjectDetect : public jevois::StdModule,
 
       // Show processing fps:
       std::string const & fpscpu = timer.stop();
-      jevois::rawimage::writeText(outimg, std::to_string(data[7]), 3, h - 13, jevois::yuyv::White);
-      
+      jevois::rawimage::writeText(outimg, fpscpu, 3, h - 13, jevois::yuyv::White);
+      put_text_on_img(outimg,h);
       // Send the output image with our processing results to the host over USB:
       outframe.send();
     }
@@ -348,6 +352,19 @@ class ObjectDetect : public jevois::StdModule,
         for (std::string const & f : files) s->writeString(f);
         return;
       }
+      else if (tok[0] == "rec")
+      {
+        if(tok[1] == "beg")
+        {
+          IsRecording = true;
+          s->writeString("recording started");
+        }
+        else
+        {
+          IsRecording = false;
+          s->writeString("recording stopped");
+        }
+      }
       else if (tok[0] == "car")
       {
         uint8_t c[22];
@@ -380,6 +397,19 @@ class ObjectDetect : public jevois::StdModule,
       itsMatcher = addSubComponent<ObjectMatcher>("surf");
     }
 
+    void put_text_on_img(jevois::RawImage img, unsigned int h)
+    {
+      std::string const dirname = absolutePath(itsMatcher->traindir::get());//getting the directory name where images will be stored
+      jevois::rawimage::writeText(img, std::string("heading") + std::to_string(data[2]), 3, h - 13*6, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("speed")   + std::to_string(data[6]), 3, h - 13*5, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("MODE")   + std::to_string(data[10]), 3, h - 13*4, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, dirname, 3, 13*3, jevois::yuyv::White);
+      if(IsRecording)
+        cv::imwrite(dirname + '/' + "vid_imgs" + '/' + "test" + ".png", jevois::rawimage::convertToCvBGR(img));
+
+      return;
+    }
+
     // ####################################################################################################
     //! Human-readable description of this Module's supported custom commands
     // ####################################################################################################
@@ -400,6 +430,8 @@ class ObjectDetect : public jevois::StdModule,
     double itsDist;
     float data[11];
     std::vector<cv::Point2f> itsCorners;
+    long counter;
+    bool IsRecording;
 };
 
 // Allow the module to be loaded as a shared object (.so) file:
