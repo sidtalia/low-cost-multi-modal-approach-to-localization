@@ -75,7 +75,40 @@ For the back end libraries, go into the "libraries folder"(currently unavailable
 
 2) You will have to download the hardware files from : https://drive.google.com/file/d/1j8or7khmo2Z-QlrW-FHwhAybPbwVp9Ex/view?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and unzip/extract it inside the "Arduino/hardware folder. You will also need to install the cortex M3 SAMD board package in arduino, which can be installed easily through the boards manager in arduino IDE. Use this video for reference, the step of cloning the STM32 repository is replaced by downloading the zip and the rest remains the same : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s
 
-3) You will need Python 3 (it may or may not work on python 2, I have only tried it with python 3.5 and 3.6.5).
+### additional steps for Linux
+Assuming you already have a functional installation of arduino (see here: https://www.arduino.cc/en/guide/linux )
+You will probably face something that looks like this the first time you try to upload :
+```
+...../hardware/Arduino_STM32-master/tools/linux/serial_upload : error 13: Permission denied
+```
+just execute the following:
+```
+cd path/to/hardware/Arduino_STM32-master/tools/linux
+sudo chmod +x *
+```
+and from within the same directory (path/to/hardware/Arduino_STM32-master/tools/linux)
+```
+cd stm32flash
+sudo chmod +x *
+```
+now restart the arduino IDE and try uploading the code
+
+### Common upload error:
+```
+Failed to init device.
+stm32flash Arduino_STM32_0.9
+
+http://github.com/rogerclarkmelbourne/arduino_stm32
+
+Using Parser : Raw BINARY
+Interface serial_posix: 115200 8E1
+
+An error occurred while uploading the sketch
+```
+This happens when you forget to reset the stm32f103c8t6 (you have to push the reset button before the upload).
+Again, watch this video for initial steps for stm32 bluepill https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s
+
+3) You will need Python
 Python dependencies : 
 Matplotlib,numpy, pyserial,scikit-learn :
 ```
