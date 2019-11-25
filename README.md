@@ -34,7 +34,7 @@ Research paper (pre-print) for the same: https://drive.google.com/file/d/17Mg2iw
 
 
 ### Control
-The control is based on bezier curve(3rd order) based trajectory generation. At the moment, the generated trajectory is not an optimized one. There is however, support for pre-emptive braking (more on that later) as a replacement for velocity profile generator.
+The control is based on bezier curve(3rd order) based trajectory generation. Code for offline trajectory optimization is in Testing right now (Test codes). There is also support for pre-emptive braking (more on that later) as a replacement for a real time velocity profile generator.
 
 The speed control uses an asymmetric non-linear controller. Big words? Here's a simpler explanation:
 1) The car does not speed up and slow down in the same way; the response of the brakes is different from the response of the throttle, therefore there is asymmetry in the process being controlled.
