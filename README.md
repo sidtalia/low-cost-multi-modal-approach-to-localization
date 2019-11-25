@@ -55,12 +55,17 @@ The car has a trajectory, it then finds the point of maximum curvature along tha
 
 
 ### Ground control system and V2V communications:
-The previous iterations did not have a GCS. This made debugging extremely hard as there wasn't an option of data recording or viewing the internal state of the controller in real time. The GCS in this work has the bare minimum features needed for debugging and is not on par with GCS like Missionplanner or even Qgroundcontrol, however, it gets the job done. The GCS allows me to record data that I could use for debugging as well as for finding flaws in the system. It can plot the position data from the car in real time.
+The previous iterations did not have a GCS. This made debugging extremely hard as there wasn't an option of data recording or viewing the internal state of the controller in real time. The GCS in this work has the bare minimum features needed for debugging and is not on par with GCS's like Missionplanner or Qgroundcontrol, however, it gets the job done. The GCS allows me to record data that I could use for debugging as well as for finding flaws in the system. It can plot the position data from the car in real time.
 
 The car is equipped with an Xbee pro (2.4GHz) and so is the GCS (GCS here can be your laptop). The actual purpose of the Xbee was not just for communication with the GCS for debugging and monitoring, but rather to allow multiple agents to communicate with each other, meaning that the car is V2X ready from the hardware's point of view. I got the inspiration to do this from a project I did last year under Celestini Program India at IIT-Delhi where I worked on ADAS coupled with V2V communication: https://github.com/Celestini-Lucifer/ADAS
 
 # Note for potential users : 
 The car will not operate without a GCS by default. This is for safety purposes and not for the sake of functionality. If the car were to operate without a GCS connection and only be in control of the user via the on board Radio control, there would be a single point of failure in communications. Adding the GCS-compulsion gives the system 2 independent points of failure. This also compulsorily limits the range of operation (which depends on the kind of transceiver used. For xbee pros, this range is ~80 meters, which is more than enough for doing experiments with a 1/10 scale car.)
+
+The system has multiple failsafes (note that the car can be operated in auto modes without the transmitter, but it is advised to always keep a transmitter with you as a failsafe).
+1) If the car goes outside the range of the GCS (Xbee, ~80 meters) the car will come to a halt. If the user wants to recover it, they have to move a 3 position switch on their Flysky Transmitter to the middle position for manual control (refer to the hardware folder for BOM). 
+2) If the main controller (stm32f103c8t6) fails and stops producing appropriate pwm signals for the esc and servo, the secondary controller will take over and relay the control signals coming from the receiver directly to the esc and motor.
+3) If the user feels that the main controller is misbehaving or not working as intended, they can flip switch D on their flysky fs-i6 (switch D on channel 6) to force the secondary controller to relay control signals directly from the receiver to the esc and motor.
 
 
 ## Photos of this project : 
@@ -79,7 +84,10 @@ For the back end libraries, go into the "libraries folder"(currently unavailable
 
 1) You will need : Arduino IDE (1.6.13 or better)
 
-2) You will have to download the hardware files from : https://drive.google.com/file/d/1j8or7khmo2Z-QlrW-FHwhAybPbwVp9Ex/view?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and unzip/extract it inside the "Arduino/hardware folder. You will also need to install the cortex M3 SAMD board package in arduino, which can be installed easily through the boards manager in arduino IDE. Use this video for reference, the step of cloning the STM32 repository is replaced by downloading the zip and the rest remains the same : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s
+2) You will have to download the hardware files from : https://drive.google.com/file/d/1j8or7khmo2Z-QlrW-FHwhAybPbwVp9Ex/view?usp=sharing (its a slightly modified version of the original fork, I don't actually remember what changes I made but somehow the code after compilation takes 5 kB less memory) and unzip/extract it inside the "Arduino/hardware folder. You will also need to install the cortex M3 SAM board package in arduino, which can be installed easily through the boards manager in arduino IDE. Use this video for reference, the step of cloning the STM32 repository is replaced by downloading the zip and the rest remains the same : https://www.youtube.com/watch?v=MLEQk73zJoU&t=295s
+
+
+The 'libraries folder' needs to go inside Arduino/libraries. The ino files need to go to wherever you store your sketches. Place the GCS folder where you keep your python files. The Baphomet code is for an Arduino Pro-Mini (5V, 16Mhz) and the Lucifer code is for the STM32F103c8t6. In the upload settings, set the CPU speed to overclocked (128Mhz) and upload method to serial.
 
 ### additional steps for Linux
 Assuming you already have a functional installation of arduino (see here: https://www.arduino.cc/en/guide/linux )
@@ -98,6 +106,7 @@ cd stm32flash
 sudo chmod +x *
 ```
 now restart the arduino IDE and try uploading the code
+
 
 ### Common upload error:
 ```
