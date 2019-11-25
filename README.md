@@ -60,7 +60,7 @@ The car will not operate without a GCS by default. This is for safety purposes a
 
 (will update this as I build this project)
 
-For the hardware specifications and 3d print files as well as 2 d drawings, go into the "hardware folder"(currently unavailable). 
+For the hardware specifications (including wiring specifications), 3d print files as well as 2 d drawings, go into the "hardware folder". 
 
 For the back end libraries, go into the "libraries folder"(currently unavailable).
 
