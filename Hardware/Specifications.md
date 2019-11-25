@@ -23,9 +23,9 @@
 6) 1 x Jevois A33 (optional) and a usb mini-b male adapter.
 7) 2 x Xbee Pro with Xbee pro adapter (one for the car and one for your computer).
 8) 1 x pwm to ppm converter (like the one used for Ardupilot).
-9) 1 x any radio control transmitter-receiver (for driving the car manually as well as failsafe).
+9) 1 x Flysky Fs-i6 (or equivalent). Put switches C and D on channels 5 and 6
 10) 1 x 5V/5A BEC (the one that you get from bang-good is just fine. It can actually only handle 3A without a voltage sag, but you can push it to 5. We won't actually need 5 A at all. We'll need ~1-1.2 A (this includes the current consumed by the jevois camera. If you're not using the jevois camera, the current consumption will be much lower, however I would still recommend using a separate BEC).
-11) 2 x LEDs taken out from a computer mouse (please do not use a standard red LED. Just take the LED out from an old mouse. 
+11) 4 x LEDs taken out from a computer mouse (please do not use a standard red LED. Just take the LED out from an old mouse. 
 12) 1 x dot board/Zero pcb, single core wires, solder, male headers.
 13) I might add more things for obstacle avoidance later. Right now I m considering the use of the camera itself to detect obstacles or run image segmentation
 
