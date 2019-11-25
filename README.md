@@ -14,7 +14,7 @@ Roadmap:
 - [x] Offline trajectory optimization given a set of waypoints (x,y) with a margin of adjustment and track width. 
 - [ ] SONAR/LIDAR based obstacle avoidance for emergency braking (Mostly dealing with interference here. Should be dealt with soon).
 - [ ] Landmark based localization using computer vision (Jevois A33)
-- [ ] Opponent detection using Object matching (may or may not be faster) (Jevois A33)
+- [ ] Opponent detection using Object matching (may or may not be faster than object detection) (Jevois A33)
 - [ ] Realtime trajectory update for overtaking
 - [ ] Designing overtaking policies.
 
