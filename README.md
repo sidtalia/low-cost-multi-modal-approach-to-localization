@@ -40,13 +40,6 @@ Video link for preemptive braking :  https://www.youtube.com/watch?v=Ko5H_G4eCLo
 #### how preemptive braking is implemented: 
 The car has a trajectory, it then finds the point of maximum curvature along that trajectory (upto the next checkpoint or waypoint) and determines maximum allowable speed for that curvature with some margin. The car then determines whether it should start slowing down for that point or not, on the basis of the deceleration required to hit that speed at that point. A more detailed discussion was done here (scroll down to the 5th last post which includes hand written notes): https://github.com/a1k0n/cycloid/pull/3
 
-For my project, since the bezier curve trajectory is dynamic, the location of the maximas can change and so I would need to find them in real time. However, the problem with this is that analytically finding the maximas is impossible (requires solving for the roots of a fifth order polynomial) and finding them numerically would take too much time for a reasonable level of error (+/- 1% )
-![image](https://user-images.githubusercontent.com/24889667/64473489-3a458180-d185-11e9-83cf-b4f9081d4508.png)
-
-This evaluation takes about 3 milliseconds on my 3.6GHz 64 bit laptop. The loop time of the entire code has to be less than 2.5 milliseconds on a 128MHz 32 bit microcontroller, so this appears to be a really bad approach
-
-To deal with this inconvenience, I came up with a "magic formula" that generates a rough guess which is within 10% of the true value and then I just use 2 iterations of the newton-rhapson method to zone in on the true value. This gets me the result (both maximas) in about 400 microseconds on the microcontroller. Furthermore, the time complexity of this process is equal to the time complexity of newton raphson method which is in the log(n) family.
-
 
 ### Ground control system and V2V communications:
 The previous iterations did not have a GCS. This made debugging extremely hard as there wasn't an option of data recording or viewing the internal state of the controller in real time. The GCS in this work has the bare minimum features needed for debugging and is not on par with GCS like Missionplanner or even Qgroundcontrol, however, it gets the job done. The GCS allows me to record data that I could use for debugging as well as for finding flaws in the system. It can plot the position data from the car in real time.
