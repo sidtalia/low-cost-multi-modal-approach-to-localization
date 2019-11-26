@@ -42,9 +42,9 @@
 #define GPS_GLITCH_SPEED (float) 15.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
-#define MODE_STANDBY 0X01
+#define MODE_STANDBY 0x01
 #define MODE_MANUAL 0x02
-#define MODE_PARTIAL 0X03
+#define MODE_PARTIAL 0x03
 #define MODE_AUTO 0x04
 #define MODE_AUTO_LUDICROUS 0x05
 #define MODE_NO_GPS 0x06
@@ -57,7 +57,7 @@
 
 #define START_SIGN 0xFE
 #define OFFSET_ID 0x01
-#define COMMAND_ID 0X02
+#define COMMAND_ID 0x02
 
 #define CONTROL_FREQUENCY LOOP_FREQUENCY/2
 #define FUTURE_TIME (float) 2/CONTROL_FREQUENCY //possible culprit
