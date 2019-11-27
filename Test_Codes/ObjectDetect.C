@@ -22,7 +22,12 @@
 #include <jevois/Debug/Timer.H>
 #include <linux/videodev2.h>
 #include <jevoisbase/Components/ObjectMatcher/ObjectMatcher.H>
+#include <jevoisbase/Components/OpticalFlow/FastOpticalFlow.H>
+#include <jevoisbase/Components/ObjectDetection/BlobDetector.H>
+#include <jevoisbase/Components/Lucifer/PARAMS.h>
 #include <opencv2/imgcodecs.hpp>
+#include <fstream>
+
 
 #include <cstdio> // for std::remove
 
@@ -165,6 +170,24 @@ JEVOIS_DECLARE_PARAMETER(showwin, bool, "Show the interactive image capture wind
     @distribution Unrestricted
     @restrictions None
     \ingroup modules */
+
+class car_state
+{
+public:
+  float X;
+  float Y;
+  float heading;
+  float destX;
+  float destY;
+  float destSlope;
+  float velocity;
+  float yawRate;
+  float pitch;
+  float roll;
+  float MODE;
+};
+
+
 class ObjectDetect : public jevois::StdModule,
                      public jevois::Parameter<win, showwin>
 {
@@ -176,9 +199,10 @@ class ObjectDetect : public jevois::StdModule,
     { 
       itsMatcher = addSubComponent<ObjectMatcher>("surf");
       counter = 0;
+      bag_counter = 0;
       IsRecording = false;
-      for(uint8_t i=0;i<11;i++)
-        data[i] = 0;
+      IsBagging = false;
+      tick = 0;
     }
 
     // ####################################################################################################
@@ -204,19 +228,69 @@ class ObjectDetect : public jevois::StdModule,
       static jevois::Timer timer("processing", 100, LOG_DEBUG);
 
       // Wait for next available camera image. Any resolution and format ok, we just convert to grayscale:
-      itsGrayImg = inframe.getCvGRAY();
+      jevois::RawImage inimg = inframe.get(); unsigned int const w = inimg.width, h = inimg.height;
+      inimg.require("input", w, h, V4L2_PIX_FMT_YUYV);
 
       timer.start();
 
-      // Compute keypoints and descriptors, then match descriptors to our training images:
-      itsDist = itsMatcher->process(itsGrayImg, itsTrainIdx, itsCorners);
+      jevois::RawImage outimg; // main thread should not use outimg until paste thread is complete
+      outimg = inimg;//create a copy for output.
 
-      // Send message about object if a good one was found:
+      // Compute keypoints and descriptors, then match descriptors to our training images:
+      if (itsKPfut.valid())
+      {
+        // Are we finished yet with computing the keypoints and descriptors?
+        if (itsKPfut.wait_for(std::chrono::milliseconds(2)) == std::future_status::ready)
+        {
+          // Do a get() on our future to free up the async thread and get any exception it might have thrown:
+          itsKPfut.get();
+
+          // Match descriptors to our training images:
+          itsDist = itsMatcher->match(itsKeypoints, itsDescriptors, itsTrainIdx, itsCorners);
+        }
+
+        // Future is not ready, do nothing except drawings on this frame and we will try again on the next one...
+      }
+      else
+      {
+        // Convert input image to greyscale:
+        itsGrayImg = jevois::rawimage::convertToCvGray(inimg);
+
+        // Start a thread that will compute keypoints and descriptors:
+        itsKPfut = std::async(std::launch::async, [&]() {
+            itsMatcher->detect(itsGrayImg, itsKeypoints);
+            itsMatcher->compute(itsGrayImg, itsKeypoints, itsDescriptors);
+          });
+      }
+
+      inframe.done();
+
       if (itsDist < 100.0 && itsCorners.size() == 4)
-  sendSerialContour2D(itsGrayImg.cols, itsGrayImg.rows, itsCorners, itsMatcher->traindata(itsTrainIdx).name);
+      {
+        jevois::rawimage::drawLine(outimg, int(itsCorners[0].x + 0.499F), int(itsCorners[0].y + 0.499F),
+                                   int(itsCorners[1].x + 0.499F), int(itsCorners[1].y + 0.499F),
+                                   2, jevois::yuyv::LightGreen);
+        jevois::rawimage::drawLine(outimg, int(itsCorners[1].x + 0.499F), int(itsCorners[1].y + 0.499F),
+                                   int(itsCorners[2].x + 0.499F), int(itsCorners[2].y + 0.499F), 2,
+                                   jevois::yuyv::LightGreen);
+        jevois::rawimage::drawLine(outimg, int(itsCorners[2].x + 0.499F), int(itsCorners[2].y + 0.499F),
+                                   int(itsCorners[3].x + 0.499F), int(itsCorners[3].y + 0.499F), 2,
+                                   jevois::yuyv::LightGreen);
+        jevois::rawimage::drawLine(outimg, int(itsCorners[3].x + 0.499F), int(itsCorners[3].y + 0.499F),
+                                   int(itsCorners[0].x + 0.499F), int(itsCorners[0].y + 0.499F), 2,
+                                   jevois::yuyv::LightGreen);
+        jevois::rawimage::writeText(outimg, std::string("Detected: ") + itsMatcher->traindata(itsTrainIdx).name +
+                                    " avg distance " + std::to_string(itsDist), 3, h + 1, jevois::yuyv::White);
+
+        sendSerialContour2D(w, h, itsCorners, itsMatcher->traindata(itsTrainIdx).name);
+      }
+
 
       // Show processing fps to log:
-      timer.stop();
+      std::string const & fpscpu = timer.stop();
+      jevois::rawimage::writeText(outimg, fpscpu, 3, h - 13, jevois::yuyv::White);
+      
+      put_text_on_img(inimg, outimg, h);//CUSTOM
     }
     // ####################################################################################################
     //! Processing function with USB output
@@ -232,11 +306,11 @@ class ObjectDetect : public jevois::StdModule,
 
       // While we process it, start a thread to wait for output frame and paste the input image into it:
       jevois::RawImage outimg; // main thread should not use outimg until paste thread is complete
+      //check what happens if I do outimg = inimg
       auto paste_fut = std::async(std::launch::async, [&]() {
           outimg = outframe.get();
           outimg.require("output", w, h + 12, inimg.fmt);
           jevois::rawimage::paste(inimg, outimg, 0, 0);
-          jevois::rawimage::writeText(outimg, std::to_string(data[0]), 3, 3, jevois::yuyv::White);
           jevois::rawimage::drawFilledRect(outimg, 0, h, w, outimg.height-h, 0x8000);
         });
 
@@ -296,7 +370,7 @@ class ObjectDetect : public jevois::StdModule,
         jevois::rawimage::writeText(outimg, std::string("Detected: ") + itsMatcher->traindata(itsTrainIdx).name +
                                     " avg distance " + std::to_string(itsDist), 3, h + 1, jevois::yuyv::White);
 
-        sendSerialContour2D(w, h, itsCorners, itsMatcher->traindata(itsTrainIdx).name);
+        //sendSerialContour2D(w, h, itsCorners, itsMatcher->traindata(itsTrainIdx).name);//commenting because don't need it at the moment
       }
 
       // Show capture window if desired:
@@ -310,7 +384,8 @@ class ObjectDetect : public jevois::StdModule,
       // Show processing fps:
       std::string const & fpscpu = timer.stop();
       jevois::rawimage::writeText(outimg, fpscpu, 3, h - 13, jevois::yuyv::White);
-      put_text_on_img(outimg,h);
+      put_text_on_img(inimg, outimg, h);
+      LUCIFER();
       // Send the output image with our processing results to the host over USB:
       outframe.send();
     }
@@ -352,32 +427,67 @@ class ObjectDetect : public jevois::StdModule,
         for (std::string const & f : files) s->writeString(f);
         return;
       }
-      else if (tok[0] == "rec")
+      // ================================ADDITIONAL CODE BEGINS============================
+      /*remember to put a return at the end of the if condition block because this 
+        function resets the matcher which would waste precious computation
+        (Think resetting the matcher 10 times per second for no good reason)
+      */
+      // else if (tok[0] == "rec")
+      // {
+      //   if(tok[1] == "beg")
+      //   {
+      //     IsRecording = true;
+      //   }
+      //   else if(tok[1] == "end")
+      //   {
+      //     IsRecording = false;
+      //   }
+      //   return;
+      // }
+      // else if (tok[0] == "data")
+      // {
+      //   if(tok[1] == "beg")
+      //   {
+      //     IsBagging = true;
+      //   }
+      //   else if(tok[1]=="end")
+      //   {
+      //     IsBagging = false;
+      //   }
+      //   return;
+      // }
+      else if (tok[0] == "car")
       {
-        if(tok[1] == "beg")
+        char ret_c[64];
+        uint8_t i;
+        for(i=0;i<22;i+=2)
+          ((float*)(&car))[i/2] = float(int16_t(str[i+4]|int16_t(str[i+5]<<8) ))*1e-2; //the first 4 bytes are just car and space ' '
+        int16_t record = int16_t(str[26]|int16_t(str[27]<<8) );
+        tick++;
+        if(record == 2)
+        {
+          IsBagging = true;
+          IsRecording = false;
+        }
+        if(record == 1)
         {
           IsRecording = true;
-          s->writeString("recording started");
+          IsBagging = false;
         }
         else
         {
-          IsRecording = false;
-          s->writeString("recording stopped");
+          IsBagging = false;
+          IsRecording = false ;
         }
+
+        for(i=0;i<64;i++)
+          ret_c[i] = ((char*)&out)[i];
+        
+        ret_str = ret_c;
+        sendSerial(ret_str);
+        return;
       }
-      else if (tok[0] == "car")
-      {
-        uint8_t c[22];
-        uint8_t i;
-        for(i=0;i<22;i++)
-        {
-          c[i] = str[i+4];
-        }
-        for(i=0;i<11;i++)
-        {
-          data[i] = float(int16_t(c[i]|int16_t(c[i+1]<<8) ))*1e-2;
-        }
-      }
+      // ================================ADDITIONAL CODE ENDS============================
       else throw std::runtime_error("Unsupported module command [" + str + ']');
 
       // If we get here, we had a successful save or del. We need to nuke our matcher and re-load it to retrain:
@@ -397,16 +507,48 @@ class ObjectDetect : public jevois::StdModule,
       itsMatcher = addSubComponent<ObjectMatcher>("surf");
     }
 
-    void put_text_on_img(jevois::RawImage img, unsigned int h)
+    void put_text_on_img(jevois::RawImage inimg ,jevois::RawImage img, unsigned int h)
     {
-      std::string const dirname = absolutePath(itsMatcher->traindir::get());//getting the directory name where images will be stored
-      jevois::rawimage::writeText(img, std::string("heading") + std::to_string(data[2]), 3, h - 13*6, jevois::yuyv::White);
-      jevois::rawimage::writeText(img, std::string("speed")   + std::to_string(data[6]), 3, h - 13*5, jevois::yuyv::White);
-      jevois::rawimage::writeText(img, std::string("MODE")   + std::to_string(data[10]), 3, h - 13*4, jevois::yuyv::White);
-      jevois::rawimage::writeText(img, dirname, 3, 13*3, jevois::yuyv::White);
-      if(IsRecording)
-        cv::imwrite(dirname + '/' + "vid_imgs" + '/' + "test" + ".png", jevois::rawimage::convertToCvBGR(img));
+      std::string const vid_dirname = "/jevois/modules/Jevois/ObjectDetect/video";
+      std::string const bag_dirname = "/jevois/modules/Jevois/ObjectDetect/bag";
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.X), 3, h - 13*11, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.Y), 3, h - 13*10, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.heading), 3, h - 13*9, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.destX), 3, h - 13*8, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.destY), 3, h - 13*7, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.destSlope), 3, h - 13*6, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("speed ")   + std::to_string(car.velocity), 3, h - 13*5, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("MODE ")   + std::to_string(car.yawRate), 3, h - 13*4, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("heading ") + std::to_string(car.MODE), 3, h - 13*3, jevois::yuyv::White);
+      jevois::rawimage::writeText(img, std::string("recording ")   + std::to_string(tick), 3, h - 13*2, jevois::yuyv::White);
 
+
+      // jevois::rawimage::writeText(img, vid_dirname, 3, 13*3, jevois::yuyv::White);
+      if(IsRecording)
+      {
+        cv::imwrite(vid_dirname + '/' + std::to_string(counter++) + ".png", jevois::rawimage::convertToCvBGR(img));
+      }
+      if(IsBagging)
+      {
+        cv::imwrite(bag_dirname + '/' + std::to_string(bag_counter++) + ".png", jevois::rawimage::convertToCvBGR(inimg));
+        fs.open("/jevois/modules/Jevois/ObjectDetect/bag/car_state.dat", std::fstream::app | std::fstream::binary);
+        fs.write((char *)&car, sizeof(car_state));
+        fs.close();
+      }
+
+      return;
+    }
+
+    void LUCIFER()
+    {
+      data[0] = 1.5;
+      data[1] = 2.5;
+      out[0] = START_SIGN;
+      out[1] = 32;
+      out[2] = STATE_ID;
+      out[3] = MODE_STANDBY;
+      for(int i=4;i<32;i++)
+        out[i] = int16_t(data[i-4]*1e2); //prep data for transmission
       return;
     }
 
@@ -428,10 +570,14 @@ class ObjectDetect : public jevois::StdModule,
     cv::Mat itsDescriptors;
     size_t itsTrainIdx;
     double itsDist;
-    float data[11];
     std::vector<cv::Point2f> itsCorners;
-    long counter;
-    bool IsRecording;
+    long counter, bag_counter;
+    bool IsRecording, IsBagging;
+    car_state car;
+    int16_t out[32]; // keeps data in integer format for transmission
+    std::fstream fs;
+    std::string ret_str;
+    long tick;
 };
 
 // Allow the module to be loaded as a shared object (.so) file:
