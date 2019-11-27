@@ -10,7 +10,7 @@ Roadmap:
 - [x] Outdoor relative localization (or odometry as most people like to call it)
 - [x] Implement manual, partial manual and auto modes with failsafes
 - [x] Trajectory generation and following
-- [x] Preemptive braking to allow for faster speeds
+- [x] Preemptive braking to allow for faster speeds (Tested upto 8m/s on worn out tires. Will test again with new tires (normal medium soft compound)
 - [x] Offline trajectory optimization given a set of waypoints (x,y) with a margin of adjustment and track width. 
 - [ ] SONAR/LIDAR based obstacle avoidance for emergency braking (Mostly dealing with interference here. Should be dealt with soon).
 - [ ] Landmark based localization using computer vision (Jevois A33)
