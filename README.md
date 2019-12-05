@@ -32,6 +32,12 @@ Test for localization accuracy: https://youtu.be/GbBbyxaOqpI
 
 Research paper (pre-print) for the same: https://drive.google.com/file/d/17Mg2iwEAEu-QG66P9JCzuJ3Squ-TULqJ/view?usp=sharing (Presented, RDCAPE 2019)
 
+### Waypoint generation:
+Currently you'll need to enter the x,y locations of the cones and the track width into the waypoint_test.py program. It will then produce a set of waypoints that produce a minimum curvature trajectory.
+
+![image](https://user-images.githubusercontent.com/24889667/70243364-73978880-1798-11ea-8f14-5a65bc630ee7.png)
+
+The next step is to make this less dependent on human input, like the work done here: https://github.com/a1k0n/cycloid (shoutout to a1k0n). 
 
 ### Control
 The control is based on bezier curve(3rd order) based trajectory generation. Code for offline trajectory optimization is in Testing right now (Test codes). There is also support for pre-emptive braking (more on that later) as a replacement for a real time velocity profile generator.
@@ -53,6 +59,8 @@ Video link for preemptive braking :  https://www.youtube.com/watch?v=Ko5H_G4eCLo
 #### how preemptive braking is implemented: 
 The car has a trajectory, it then finds the point of maximum curvature along that trajectory (upto the next checkpoint or waypoint) and determines maximum allowable speed for that curvature with some margin. The car then determines whether it should start slowing down for that point or not, on the basis of the deceleration required to hit that speed at that point. A more detailed discussion was done here (scroll down to the 5th last post which includes hand written notes): https://github.com/a1k0n/cycloid/pull/3
 
+### Vision component: 
+I have just started with computer vision please wait a couple of years uwu.
 
 ### Ground control system and V2V communications:
 The previous iterations did not have a GCS. This made debugging extremely hard as there wasn't an option of data recording or viewing the internal state of the controller in real time. The GCS in this work has the bare minimum features needed for debugging and is not on par with GCS's like Missionplanner or Qgroundcontrol, however, it gets the job done. The GCS allows me to record data that I could use for debugging as well as for finding flaws in the system. It can plot the position data from the car in real time.
