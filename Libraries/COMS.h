@@ -91,6 +91,59 @@ public:
 		write_To_Port(T,2);
 	}//42 bytes sent
 
+	void Send_Config(int16_t params[20])
+	{
+		uint8_t i;
+		write_To_Port(START_SIGN,2);
+		write_To_Port(28,2);
+		write_To_Port(CONFIG_ID,2);
+		write_To_Port(0x01,2);//mode
+		for(i=0;i<20;i++)
+		{
+			write_To_Port(params[i],2);
+		}
+	}
+
+	bool Get_Config(int16_t params[20])
+	{
+		uint8_t i;
+		int16_t START_ID, message_ID, len;
+		
+		write_To_Port(START_SIGN,2);//start sign
+		write_To_Port(8,2); 		//length of payload
+		write_To_Port(CONFIG_ID,2); //tell the GCS that I want them sweet sweet configs.
+		write_To_Port(0x01,2);
+
+		delay(1000);//wait 1 second for the data to come in
+		if(Serial.available())
+		{
+			START_ID = Serial.read()|int16_t(Serial.read()<<8); //start sign
+			if(START_ID == START_SIGN)
+			{
+				len = Serial.read()|int16_t(Serial.read()<<8); //length of packet 40 bytes
+				message_ID = Serial.read()|int16_t(Serial.read()<<8);
+				Serial.read()|int16_t(Serial.read()<<8);//waste
+				if(message_ID==CONFIG_ID && len == 40)//confirm that you are getting the offsets and nothing else.
+				{
+					for(i=0;i<20;i++)//computer has offsets
+					{
+						params[i] = Serial.read()|int16_t(Serial.read()<<8);
+					}
+					return 1;
+				}
+				else
+				{
+					return 0;
+				}
+			}
+			else
+			{
+				return 0; //if computer has no offsets
+			}
+		}
+		return 0;
+	}
+
 	void Get_WP(float &X, float &Y, float &slope, int16_t &point)
 	{
 		received_stamp = millis();
@@ -141,7 +194,7 @@ public:
 	}//2 bytes
 
 	// void send_heartbeat(); 
-	void Send_State(byte mode,double lon, double lat,double gps_lon, double gps_lat, float vel, float heading, float pitch, float roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop)//position(2), speed(1), heading(1), acceleration(1), Position Error
+	void Send_State(byte mode,double lon, double lat,double gps_lon, double gps_lat, float vel, float heading, float pitch, float roll,float Accel, float opError, float pError, float head_Error, float VelError, float Time, float Hdop, int16_t comp_status)//position(2), speed(1), heading(1), acceleration(1), Position Error
 	{
 		if(millis() - transmit_stamp > 100)
 		{
@@ -161,7 +214,7 @@ public:
 			out[11] = head_Error*1e3;
 			out[12] = VelError*1e3;
 			out[13] = Time;
-			out[14] = Hdop*1e3;
+			out[14] = int32_t(Hdop*1e3)<<16|int32_t(comp_status);
 
 			write_To_Port(START_SIGN,2);
 			write_To_Port(68,2);
