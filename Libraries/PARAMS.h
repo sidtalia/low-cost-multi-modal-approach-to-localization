@@ -57,6 +57,7 @@
 
 #define START_SIGN 0xFE
 #define OFFSET_ID 0x01
+#define CONFIG_ID 0x03
 #define COMMAND_ID 0x02
 
 #define CONTROL_FREQUENCY LOOP_FREQUENCY/2
@@ -75,6 +76,11 @@
 #define MARK_ID 0x0009
 #define CALIB_ID 0x000A
 #define SET_ORIGIN_ID 0x000B
+#define REC_ID_1 0x000C
+#define REC_ID_0 0x00FC
+#define REC_DEBUG_ID_1 0x000D
+#define REC_DEBUG_ID_0 0x00FD
+
 
 #define GYRO_CAL 0x10
 #define ACCEL_CAL 0x20
