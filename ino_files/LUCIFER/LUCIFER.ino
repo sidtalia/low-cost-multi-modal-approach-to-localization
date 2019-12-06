@@ -106,7 +106,7 @@ void setup()
   long timeout = millis();
   do //wait till we get a GPS fix
   {
-    gcs.Send_State(MODE, gps.latitude, gps.longitude,gps.latitude,gps.longitude, marg.V, marg.mh, marg.pitch, marg.roll, marg.Ha, opticalFlow.P_Error, 0, marg.mh_Error, marg.V_Error, 0,gps.Hdop);
+    gcs.Send_State(MODE, gps.latitude, gps.longitude,gps.latitude,gps.longitude, marg.V, marg.mh, marg.pitch, marg.roll, marg.Ha, opticalFlow.P_Error, 0, marg.mh_Error, marg.V_Error, 0,gps.Hdop,0);
     if(gps.Hdop>1000)//if gps is unavailable, skip.
     {
       delay(100);
@@ -134,6 +134,8 @@ unsigned long timer,time_it;
 unsigned long T,benchmark;
 bool reflect_WP = false;
 float dummy;
+int16_t jevois_message;
+float jevois_X,jevois_Y;
 
 void clear_wp()
 {
@@ -172,7 +174,6 @@ void loop()
   //till here it takes 120us, total at 1330us
   //================HANDLE COMMUNICATIONS================
 
-  jevois.Send_State(MODE, car.X, car.Y, marg.mh, dest_X, dest_Y, slope, marg.pitch, marg.roll, marg.yawRate, car.Velocity);//CHANGED
   message = gcs.check();//automatically regulates itself at 10Hz, don't worry about it
   if(reflect_WP)//if waypoints are to be sent back, this remains true
   {
@@ -180,12 +181,14 @@ void loop()
   }
   else //this is for the general case
   {
-    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  inputs[7], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop); //also regulated at 10Hz
+//    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+//                  inputs[7], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop); //also regulated at 10Hz
 //      gcs.Send_State(MODE, double(car.X), double(car.Y),double(track.X_max),double(track.Y_max),track.C[1],track.braking_distance,marg.mh,0,
 //                    car.Velocity, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, 3.15, benchmark,gps.Hdop);
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
 //                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
+    gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
+                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
   }
   if(gcs.get_Mode()!=255)//255 is condition for no message received yet.
   {
@@ -278,7 +281,16 @@ void loop()
   {
     clear_wp();
   }
-
+  //========COMPANION CODE HERE=========
+  jevois_message = jevois.check();
+  if(jevois_message==STATE_ID)
+  {
+    jevois.get_data(jevois_X,jevois_Y);
+  }
+  jevois.handle_Recording(message); //check if the message asks to start/stop recording and then handle it
+  jevois.Send_State(MODE, car.X, car.Y, marg.mh, dest_X, dest_Y, slope, marg.pitch, marg.roll, marg.yawRate, car.Velocity);//CHANGED
+  //====================================
+  
   if( distancecalcy(car.Y, dest_Y, car.X, dest_X,0) <= WP_CIRCLE && num_waypoints!=0 && car_ready)//checking if waypoint has been reached
   {
     sentinel++;
@@ -305,10 +317,6 @@ void loop()
     }
 
   }
-  
-  /*
-   * ADD CODE FOR JEVOIS/COMPANION COMPUTER HERE 
-   */
   
   if( (MODE == CRUISE || MODE == LUDICROUS) && point == num_waypoints-1 && num_waypoints!=0 )//autonomous modes. The paranthesis are important! the conditions need to be clubbed together
   {
