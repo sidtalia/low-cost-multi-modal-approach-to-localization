@@ -22,6 +22,11 @@ WP_ID = 0x0005
 STATE_ID = 0x0006
 CALIB_ID = 0x000A
 CLEAR_ID = 0x0008
+SET_ORIGIN_ID = 0x000B
+REC_ID_1 = 0x000C
+REC_ID_0 = 0x00FC
+REC_DEBUG_ID_1 = 0x000D
+REC_DEBUG_ID_0 = 0x00FD
 
 GYRO_CAL = 0x10
 ACCEL_CAL = 0x20
@@ -33,13 +38,14 @@ Tx_MODE = 0x01 #default starting mode
 Tx_ID = STATE_ID #default message ID 
 Tx_msg_len = 28 #default message length
 rec = False
+rec_vid = False
 
 print("LUCIFER ver0.0.1")
 
 connection = False
 run = True
 base = 'COM'
-for i in range(20):
+for i in range(5):
 	name = base + str(i)
 	try:
 		com._init_(name,BAUD,64)#last parameter is max bytes
@@ -117,6 +123,17 @@ def send_heartbeat(car):
 	if(Tx_MODE == 0x07): #special case
 		set_standby()
 	# print("got here")
+
+def handle_car_status(status):
+	global Tx_ID
+	if (status&0x0002==1) and (rec_vid==False):
+		Tx_ID = REC_ID_0
+	elif (status&0x0002==0) and (rec_vid==True):
+		Tx_ID = REC_ID_1
+	if (status&0x0001==1) and (rec==False):
+		Tx_ID = REC_DEBUG_ID_0
+	elif (status&0x0001==0) and (rec==True):
+		Tx_ID = REC_DEBUG_ID_1
 
 def readSerial():
 	global Tx_MODE
@@ -196,7 +213,10 @@ def readSerial():
 				head_error = 	   1e-3*buf[11]
 				Vel_Error = 	   1e-3*buf[12]
 				Exec_time = 	   buf[13]
-				Hdop =			   1e-3*buf[14]
+				car_status = 	   (buf[14]&0x0000FFFF)
+				Hdop =			   1e-3*((buf[14]&0xFFFF0000)>>16)
+
+				handle_car_status(car_status)
 
 				gcs.MODE.configure(text = 'MODE = {}'.format(str(car.MODE) ) )
 				gcs.latitude.configure(text = 'filtered Y = {} meters'.format(str(round(car.Y,7) ) ) )
@@ -324,7 +344,7 @@ def set_control_check():
 
 def set_origin():
 	global Tx_ID
-	Tx_ID = 0x000B
+	Tx_ID = SET_ORIGIN_ID
 
 def mark():
 	global waypoint_list
@@ -371,11 +391,27 @@ def calib():
 
 def record():
 	global rec
+	global Tx_ID
 	rec = True
+	Tx_ID = REC_DEBUG_ID_1
 
 def stop_recording():
 	global rec
+	global Tx_ID
 	rec = False
+	Tx_ID = REC_DEBUG_ID_0
+
+def record_video():
+	global Tx_ID
+	global rec_vid
+	rec_vid = True
+	Tx_ID = REC_ID_1
+
+def stop_video():
+	global Tx_ID
+	global rec_vid
+	rec_vid = False
+	Tx_ID = REC_ID_0
 
 
 class GCS():
@@ -456,6 +492,10 @@ class GCS():
         self.record_button.pack()
         self.record_stop_button = tk.Button(self.frame, text = 'STOP_RECORDING', command = stop_recording)
         self.record_stop_button.pack()
+        self.record_button = tk.Button(self.frame, text = 'RECORD_VIDEO', command = record_video)
+        self.record_button.pack()
+        self.record_stop_button = tk.Button(self.frame, text = 'STOP_VIDEO', command = stop_video)
+        self.record_stop_button.pack()
         self.caliberate_button = tk.Button(self.frame, text = 'CALIB A/G', command = calib)
         self.caliberate_button.pack()
 
@@ -468,7 +508,3 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
-
-
-
-
