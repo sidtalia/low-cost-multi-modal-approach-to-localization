@@ -37,7 +37,7 @@ Research paper (pre-print) for the same: https://drive.google.com/file/d/17Mg2iw
 ### Waypoint generation:
 Currently you'll need to enter the x,y locations of the cones and corresponding initial guesses for the waypoints (because some cones are on the inside and some on the outside of the turn so I don't really have a way to automate the initial guesses at the moment) and the track width into the waypoint_test.py program. It will then produce a set of waypoints that produce a minimum curvature trajectory.
 
-![image](https://user-images.githubusercontent.com/24889667/70243364-73978880-1798-11ea-8f14-5a65bc630ee7.png)
+![image](https://user-images.githubusercontent.com/24889667/70389062-666cda80-19e0-11ea-997c-940d2b90f7f5.png)
 
 The next step is to make this less dependent on human input, like the work done here: https://github.com/a1k0n/cycloid (shoutout to a1k0n). 
 
