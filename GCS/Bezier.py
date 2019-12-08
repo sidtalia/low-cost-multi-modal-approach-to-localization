@@ -7,6 +7,7 @@ DEG2RAD = 1/57.3
 
 track_width = 4
 max_curvature = 0.5
+ratio = 0.4
 
 def set_track_width(tw):
 	global track_width
@@ -57,15 +58,16 @@ def generate_slopes(X,Y):
 
 def get_Intermediate_Points(slope1, slope2, X1, X2, Y1, Y2):
 	global track_width
+	global ratio
 	int1 = np.zeros(2)
 	int2 = np.zeros(2)
 	d = distancecalcy(Y2,Y1,X2,X1)
 	if(d>track_width):
 		d = track_width
-	int1[0] = X1 + 0.35*m.cos(slope1*DEG2RAD)*d
-	int1[1] = Y1 + 0.35*m.sin(slope1*DEG2RAD)*d
-	int2[0] = X2 - 0.35*m.cos(slope2*DEG2RAD)*d
-	int2[1] = Y2 - 0.35*m.sin(slope2*DEG2RAD)*d
+	int1[0] = X1 + ratio*m.cos(slope1*DEG2RAD)*d
+	int1[1] = Y1 + ratio*m.sin(slope1*DEG2RAD)*d
+	int2[0] = X2 - ratio*m.cos(slope2*DEG2RAD)*d
+	int2[1] = Y2 - ratio*m.sin(slope2*DEG2RAD)*d
 	return int1,int2
 
 def get_bezier(X1,X2,Y1,Y2,slope1,slope2):
@@ -186,9 +188,9 @@ def s_k(X, Y, slope1, destX, destY, slope2):
 	int1,int2 = get_Intermediate_Points( slope1, slope2, X, destX, Y, destY)
 	t = get_T(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY)
 	Curvature = np.max(np.fabs(get_Curvature(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY, t)))
-	Curvature *= (Curvature/max_curvature)**2
+	Curvature *= max((Curvature/max_curvature)**2,1)
 	s = arc_length(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY)
-	return Curvature
+	return (Curvature)
 
 def get_bezier_track(X,Y,slope):
 	bx = np.zeros(len(X)*10)
