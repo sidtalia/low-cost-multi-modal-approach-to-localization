@@ -484,6 +484,11 @@ sanity check : marg.failure ? initialize() : do nothing
 #define MAG_UPDATE_TIME (float)0.01
 #define MAG_UPDATE_TIME_MS (int) (1000*MAG_UPDATE_TIME)
 
+#define EARTH_MAG_STRENGTH (float) 49.0 //earth's magnetic field strength
+#define EARTH_MAG_DIP (float) 45.0 //angle of dip
+#define COMPASS_SCALE_FACTOR (float) 0.70711
+#define HORIZ_EARTH_MAG (float) EARTH_MAG_STRENGTH*cosf(EARTH_MAG_DIP*DEG2RAD)/COMPASS_SCALE_FACTOR
+#define HORIZ_EARTH_MAG_INV (float) 1/HORIZ_EARTH_MAG
 
 #define TEMP_COMP (float)-0.001//temp compensation for gyro (Accel compensation seemed unnecessary as the variance over temperature was too small)
                         //this is valid only for 1000dps gyro scaling and is applied directly to temp readings (no scaling etc req.)
@@ -554,7 +559,7 @@ class MPU9150 {
         float roll,pitch,yawRate,mh;
         float roll_Error,pitch_Error,mh_Error;
         float magbuf[2],mag_gain;
-        float del;//difference in angle between when the magnetometer was called and when it actually replied.
+        float del;//mag heading using only X axis
         float Ha,V,bias,La;
         float V_Error;
         int16_t offsetA[3],offsetG[3],offsetM[3],offsetT;//offsets need to be saved you know.
