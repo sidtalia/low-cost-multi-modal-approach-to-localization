@@ -190,7 +190,7 @@ def s_k(X, Y, slope1, destX, destY, slope2):
 	Curvature = np.max(np.fabs(get_Curvature(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY, t)))
 	Curvature *= max((Curvature/max_curvature)**2,1)
 	s = arc_length(X, Y, int1[0], int1[1], int2[0], int2[1], destX, destY)
-	return (Curvature)
+	return (Curvature+s/5)
 
 def get_bezier_track(X,Y,slope):
 	bx = np.zeros(len(X)*10)
