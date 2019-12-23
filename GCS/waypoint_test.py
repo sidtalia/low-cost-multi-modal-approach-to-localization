@@ -15,10 +15,10 @@ DEG2RAD = 1/57.3
 # Y = np.array([0, 0, 4, 6,4.5, 3, 2, 1, 5.5, 4, 0,0])
 track_width = 1.2
 set_track_width(track_width)
-cone_radius = 0
+cone_radius = 0.3
 center_offset = track_width/2
 X_cone = np.array([0, 5.5, 7.0, 5.5, -1.0, -7.0, -6.5, -6.0,0])
-Y_cone = np.array([0, 0, 1.829, 3.658, 3.427, 3.658, 1.829, 0, 0]) + track_width
+Y_cone = np.array([0, 0, 1.8, 3.7, 3.7, 3.6, 1.8, 0, 0]) + track_width
 # X = np.array([0, 3.0205, 4.8495+center_offset, 3.0205, 0.1085,-3.0205,-3.0205,0])
 Y = np.array([0, Y_cone[1]-center_offset, Y_cone[2], Y_cone[3]+center_offset, Y_cone[4] -center_offset, Y_cone[5]+center_offset, Y_cone[6], Y_cone[7]-center_offset, 0])
 X = np.array([X_cone[0], X_cone[1], X_cone[2]+center_offset, X_cone[3], X_cone[4], X_cone[5],X_cone[6]-track_width, X_cone[7], X_cone[8]])
@@ -50,7 +50,7 @@ state_0 = np.copy(state) # create a copy that will be used later as reference
 # set state radius
 state_radius = np.zeros(dims)
 state_radius[0] = 40 # +/- degrees of slope
-state_radius[1] = center_offset # +/- meters offset for waypoint
+state_radius[1] = center_offset - cone_radius # +/- meters offset for waypoint
 state_radius[2] = 2*m.pi
 # change in state used for evaluating partial derivative:
 delta = np.zeros(dims)
@@ -64,7 +64,8 @@ cost = np.zeros_like(slope)
 last_cost = np.zeros_like(slope)
 n = len(X)
 N = 1000
-tracker = np.zeros(N)
+iterations = 5
+tracker = np.zeros(iterations*N)
 error = np.zeros_like(state)
 last_error = np.zeros_like(state)
 s_error = np.zeros_like(state)
@@ -91,11 +92,11 @@ def local_cost(X,Y,slope,i):
 	f = (i+1)%n
 	# print(s,f)
 	cost[1] = s_k(X[s], Y[s], slope[s], X[f], Y[f], slope[f])
-	local_cost = m.fabs(cost[1]+cost[0])
+	local_cost = m.fabs(cost[1]-cost[0])
 	return local_cost
 
-kp = 4/N
-ki = 0/N
+kp = 10/N
+ki = 10/N
 kd = 0/N
 
 def check(x,origin,delta):
@@ -110,7 +111,7 @@ def check(x,origin,delta):
 min_cost=1e3
 min_cost_state = np.copy(state)
 count = 0
-while(count < 10):
+for j in range(iterations):
 	count+=1
 	for _ in range(N):
 		for i in range(len(slope)-1):
@@ -129,10 +130,10 @@ while(count < 10):
 				state[k][i] = dummy
 				delta_state[k][i] = (new - base)/delta[k]#dy/dx 
 		
-		tracker[_] = np.sum(cost)
-		if(tracker[_]<min_cost):
+		tracker[_+j*N] = np.sum(cost)
+		if(tracker[_+j*N]<min_cost):
 			min_cost_state = state
-			min_cost = tracker[_]
+			min_cost = tracker[_+j*N]
 		
 		for i in range(len(slope)):
 			for k in range(dims):	
@@ -151,7 +152,7 @@ while(count < 10):
 		slope = state[0,:]
 		X = state[1,:]*np.cos(state[2,:]) + X_0
 		Y = state[1,:]*np.sin(state[2,:]) + Y_0 #new X,Y slope
-	state = np.copy(min_cost_state)
+	state = np.copy(min_cost_state) #after each N passes, it starts over from the state vector that produced the least cost.
 # print(min_cost_state)
 slope = state[0,:]
 X = state[1,:]*np.cos(state[2,:]) + X_0
@@ -179,6 +180,16 @@ plt.scatter(X,Y,label='waypoint')
 plt.plot(bx,by,label='expected trajectory')
 plt.legend()
 plt.show(block=False)
+
+
+theta = 26/57.3
+rot_X = m.cos(theta)*X - m.sin(theta)*Y
+rot_Y = m.sin(theta)*X + m.cos(theta)*Y
+
+X = rot_X
+Y = rot_Y
+slope += theta*57.3
+np.fmod(slope,360.0)
 
 wp = []
 for i in range(len(X)):
