@@ -41,7 +41,7 @@
 #define VARIABLE_GAIN (float) (1/CRITICAL_YAW)
 #define LPF_GAIN_THROTTLE (float) 1.0f/637.6 //this is for 200Hz sample rate.
 #define C1_THROTTLE (float) 0.99686
-#define LPF_GAIN_10 (float) 7.31375
+#define LPF_GAIN_10 (float) 1.0f/7.31375
 #define C1_10 (float) 0.726542
 #define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN)
 
