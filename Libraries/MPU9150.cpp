@@ -482,9 +482,9 @@ void MPU9150::compute_All()
   mh_Error += GYRO_VARIANCE;
 
   //CORRECTION STEP AND REDUCING THE ERROR AFTER CORRECTION IN ROLL AND PITCH
-  Anet = (A[0]*A[0] + A[1]*A[1] + A[2]*A[2]); //square of net acceleration. TODO : FIX THIS BITCH
-  trust = exp_spike(0,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
-  
+  Anet = (A[0]*A[0] + A[1]*A[1] + (A[2]+GRAVITY)*(A[2]+GRAVITY)); //square of net acceleration. TODO : FIX THIS BITCH
+  trust = exp_spike(G_SQUARED,Anet);// spiky boi filter. Basically the farther away the net acceleration is from g,
+
   if( fabs(A[1])<GRAVITY-1.0f ) //sanity check on accelerations so that we don't get Naans
   {
     innovation[0] = pitch; //dummy;
