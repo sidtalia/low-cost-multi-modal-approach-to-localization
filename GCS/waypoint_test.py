@@ -14,7 +14,7 @@ DEG2RAD = 1/57.3
 # X = np.array([0, 3, 6, 1, -1, 2, 4, 2,-3,-6,-3,0])
 # Y = np.array([0, 0, 4, 6,4.5, 3, 2, 1, 5.5, 4, 0,0])
 track_width = 1.2
-set_track_width(track_width)
+set_track_width(track_width*m.sqrt(2))
 cone_radius = 0.3
 center_offset = track_width/2
 X_cone = np.array([0, 5.5, 7.0, 5.5, -1.0, -7.0, -6.5, -6.0,0])
@@ -63,8 +63,8 @@ delta_state = np.zeros_like(state)
 cost = np.zeros_like(slope)
 last_cost = np.zeros_like(slope)
 n = len(X)
-N = 1000
-iterations = 5
+N = 200
+iterations = 1
 tracker = np.zeros(iterations*N)
 error = np.zeros_like(state)
 last_error = np.zeros_like(state)
@@ -92,7 +92,7 @@ def local_cost(X,Y,slope,i):
 	f = (i+1)%n
 	# print(s,f)
 	cost[1] = s_k(X[s], Y[s], slope[s], X[f], Y[f], slope[f])
-	local_cost = m.fabs(cost[1]-cost[0])
+	local_cost = m.fabs(cost[1]+cost[0])
 	return local_cost
 
 kp = 10/N
