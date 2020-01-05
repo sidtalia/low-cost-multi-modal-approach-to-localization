@@ -9,7 +9,7 @@
 #define DIST_BW_ACCEL_AXLE (float) 0.225// distance between rear axle and accelerometer
 #define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
 #define OP_POS (float) DIST_BW_ACCEL_AXLE*0.6f
-#define OP_FLOW_MAX_SPEED (float) 6.0
+#define OP_FLOW_MAX_SPEED (float) 7.0
 #define OP_FLOW_MAX_V_ERROR (float) 1000.0
 #define deadBand_ROC (float) OP_POS*5.671f
 #define DAMPING (float) 0.4f
@@ -29,7 +29,7 @@
 #define AI3 (float) -0.01024264
 #define ROLL_RES (float) 5.3
 #define DISCHARGE_RANGE (float) (4.2-3.6)/4.2
-#define MAX_LEARNING_SPEED OP_FLOW_MAX_SPEED/2
+#define MAX_LEARNING_SPEED OP_FLOW_MAX_SPEED
 #define MIN_LEARNING_SPEED (float) 0.5f
 #define MAX_GAIN (float) 0.1f
 #define DECAY_TIME (float) 1.0f //time in seconds after which car's model becomes practically useless
@@ -64,7 +64,7 @@
 #define FUTURE_TIME (float) 2/CONTROL_FREQUENCY //possible culprit
 #define CONTROL_TIME (float) 1000/CONTROL_FREQUENCY //control time in ms
 #define CONTROL_TIME_SEC (float) 1/CONTROL_FREQUENCY
-#define PATH_WIDTH (float) 3.0 //width of the track.  possible culprit
+#define PATH_WIDTH (float) 1.2*1.414 //width of the track.  possible culprit
 #define CONSTRUCT_LENGTH (float) PATH_WIDTH*3.0f
 
 #define WP_CIRCLE 0.75 //1/2 meter radius around waypoint. possible culprit
