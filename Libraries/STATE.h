@@ -203,7 +203,7 @@ public :
 
 		//POSITION ESTIMATE USING BOTH THE ACCELEROMETER AND THE OPTICAL FLOW
 		//note that the optical flow error will skyrocket if it the sensor is defunct or if the surface quality is poor.
-		if(fabs(model[2]) < deadBand_ROC && fabs(model[2]) > 0.3 && OF_V_Error < OP_FLOW_MAX_V_ERROR)//make sure that the sensor readings are correct and the roc is less than deadband roc
+		if(fabs(model[2]) < deadBand_ROC && fabs(model[2]) > 0.5 && OF_V_Error < OP_FLOW_MAX_V_ERROR)//make sure that the sensor readings are correct and the roc is less than deadband roc
 		{
 			OF_X += OF_Y*OP_POS/model[2]; //the '+' sign is there because there is already a '-' in the term that is subtracted.
 		}
@@ -249,8 +249,8 @@ public :
 				position_reset = true;
 				Hdop = 1e7;
 			}
-			if(Hdop<1.2f)
-				Hdop *= 0.5;
+			// if(Hdop<GPS_HDOP_LIM)
+				// Hdop *= 0.2;
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
 			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
 			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
