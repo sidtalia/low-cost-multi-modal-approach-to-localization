@@ -188,7 +188,7 @@ void loop()
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
 //                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
     gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
+                  marg.encoder_velocity[2], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
   }
   if(gcs.get_Mode()!=255)//255 is condition for no message received yet.
   {
@@ -317,7 +317,11 @@ void loop()
     }
 
   }
-  
+
+  if(opticalFlow.failure)
+  {
+    MODE = MODE_STOP; //this is to ensure the car does not rocket itself into a wall due to an electronic failure on the optical flow's end, which is not highly likely but has happened some times.
+  }
   if( (MODE == CRUISE || MODE == LUDICROUS) && point == num_waypoints-1 && num_waypoints!=0 )//autonomous modes. The paranthesis are important! the conditions need to be clubbed together
   {
     time_it = micros();
@@ -325,7 +329,7 @@ void loop()
     track.confirm_maxima_priority(c[sentinel], track.X_max, track.Y_max, track.C[1], track.braking_distance);
     benchmark = micros()-time_it;
     control.driver(track.C, track.braking_distance, car.Velocity,car.drift_Angle, marg.yawRate, marg.La, marg.Ha, MODE, inputs); //send data to driver code. automatically maintains a separate control frequency.
-    dummy = track.C[0];
+    dummy = track.braking_distance;
   }
   else if(MODE == MODE_PARTIAL || MODE == MODE_MANUAL || MODE == MODE_STOP || MODE == MODE_STANDBY || MODE==MODE_CONTROL_CHECK)//manual modes
   {
@@ -334,11 +338,11 @@ void loop()
   }
   else
   {
-    float dum[] = {0.0,0.0};//dummy
+    float dum[] = {0.0001,0.0001};//dummy
     MODE = MODE_STANDBY;
     control.driver(dum, 1000, car.Velocity,car.drift_Angle, marg.yawRate, marg.La, marg.Ha, MODE, inputs);
   }
-  if(T > dt_micros)//in case the execution time exceeds loop time limit
+  if(micros()-timer > dt_micros)//in case the execution time exceeds loop time limit
   {
     gcs.Send_Calib_Command(5);
   }
