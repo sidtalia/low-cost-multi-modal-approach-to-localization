@@ -59,7 +59,7 @@ if(connection == False):
 	run = False
 
 file_name = 'LUCIFER_offsets_0.npy'
-waypoint_file = 'LUCIFER_WP_slopes.npy'
+waypoint_file = 'LUCIFER_WP_cones.npy'#'LUCIFER_WP_slopes.npy'
 log_file = 'LUCIFER_log_0.npy'
 saved = False
 
@@ -140,7 +140,7 @@ def readSerial():
 	global Tx_ID
 	global Tx_msg_len
 	global saved
-	time.sleep(0.05)
+	time.sleep(0.01)
 	try:
 		num_bytes = com.check_recv()
 		if(num_bytes):
@@ -508,3 +508,7 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
+
+
+
+
