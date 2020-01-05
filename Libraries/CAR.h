@@ -7,7 +7,11 @@
 #include"PARAMS.h"
 
 
-#define WHEELBASE (float)0.254 //wheelbase in meters
+#define WHEELBASE (float) 0.254f //wheelbase in meters
+#define CG_HEIGHT (float) 0.03f //assumed cg height. should be about the same as this.
+#define FR_ratio (float) 0.52f //assumed ratio of CG distance from front to the wheelbase
+#define H_WB_ratio (float) CG_HEIGHT/(WHEELBASE*FR_ratio)
+
 #define STEERING_MAX 25 //25 degrees max steering 
 #define STEERING_PULSE_LOCK2CENTER 372 //pulse difference between center steering and steering at full lock. they might be different for your car.
 // #define ABSOLUTE_MAX_ACCELERATION 7 //10m/s*s. This is the absolute maximum acceleration the car can handle
@@ -20,6 +24,8 @@
 #define DEFAULT_ABS_MAX_ACC (float) 10.0f
 #define DEFAULT_ABS_MIN_ACC (float) 5.0f
 #define DRIFT_RATIO_CUTOFF (float) 0.1f
+#define DEFAULT_MU (float) 1.0f
+#define DONT_CARE_RADIUS (float) WP_CIRCLE + 0.5f
 
 #define maxValue (int) 2000
 #define minValue (int) 1000
@@ -44,8 +50,7 @@
 #define LPF_GAIN_10 (float) 1.0f/7.31375
 #define C1_10 (float) 0.726542
 #define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN)
-
-#define C_Critical (float) 2.0f //tanf(DEG2RAD*STEERING_MAX)/WHEELBASE
+#define THROTTLE_TIME_CONSTANT (float) 0.2f
 
 #define LEARNING_RATE (float) dt
 
@@ -77,6 +82,7 @@ class controller
 	bool IsLearning,IsOversteering;
 	float S_V_Error;
 	float SAFE_DECELERATION,ABSOLUTE_MAX_ACCELERATION,MAX_ACCELERATION,MAX_ACCELERATION_SQ,BRAKE_GAIN;
+	float C_Critical, mu, C_Gain, Bruh_G, Bruh;
 	bool preemptive;
 	public:
 	float feedback_factor,Ha;
@@ -103,7 +109,11 @@ class controller
 		MAX_ACCELERATION = 0.6*ABSOLUTE_MAX_ACCELERATION;
 		MAX_ACCELERATION_SQ = MAX_ACCELERATION*MAX_ACCELERATION;
 		SAFE_DECELERATION = -0.4*MAX_ACCELERATION;
-		BRAKE_GAIN = 500.0f/MAX_ACCELERATION;
+		BRAKE_GAIN = 500.0f/fabs(SAFE_DECELERATION);
+		// C_Critical = 0.33f;
+		Bruh = DEFAULT_MU*H_WB_ratio;
+		Bruh_G = Bruh/(1 + Bruh*Bruh);
+		C_Gain = fast_sqrt(Bruh_G/(WHEELBASE*DEFAULT_MU*GRAVITY));
 	}
 
 	void adjust_g_force_limits(float drift_ratio)
@@ -114,10 +124,16 @@ class controller
 			ABSOLUTE_MAX_ACCELERATION = DEFAULT_ABS_MIN_ACC;
 		}
 		//the rest are adjusted accordingly
-		MAX_ACCELERATION = 0.5*ABSOLUTE_MAX_ACCELERATION;
+		MAX_ACCELERATION = ABSOLUTE_MAX_ACCELERATION;
 		MAX_ACCELERATION_SQ = MAX_ACCELERATION*MAX_ACCELERATION;
-		SAFE_DECELERATION = -0.5*MAX_ACCELERATION;
-		BRAKE_GAIN = 500.0f/MAX_ACCELERATION;
+		SAFE_DECELERATION = -0.7*MAX_ACCELERATION;
+		BRAKE_GAIN = 500.0f/fabs(SAFE_DECELERATION);
+		mu = (ABSOLUTE_MAX_ACCELERATION/DEFAULT_ABS_MAX_ACC)*DEFAULT_MU;
+		Bruh = 0.19f*mu*H_WB_ratio;
+		Bruh_G = Bruh/(1+Bruh*Bruh);
+		C_Gain = fast_sqrt(Bruh_G/(WHEELBASE*mu*GRAVITY));
+		// float theta_critical = asinf(1/fast_sqrt(1+k*k)) - atanf(k);
+		// C_Critical = tanf(theta_critical)/WHEELBASE;
 		return;
 	}
 
@@ -213,16 +229,17 @@ class controller
 		roc = DEG2RAD*(steer - STEERINGNULL)*STEERING_OPEN_GAIN_INV;
 		roc = check(roc,1e-3);//the steering angle must not be less than 1e-3 radians or 0.0573 degrees effectively a radius of more than 225 meters will not be accepted. This prevents the possibility of running into NaNs 
 		roc = WHEELBASE/tanf(roc);//this is how you reuse variables kids. roc does not have to be very accurate but it does have to be stable.
-		// if(throttle - last_Throttle > THROTTLE_DELTA)
-		// {
-		// 	throttle = last_Throttle + THROTTLE_DELTA;
-		// }
+		// roc = tanf(roc)/WHEELBASE; //curvature.
+		
+
 		last_Throttle = throttle; //this actually has it's use elsewhere.
 		
+		// if(fabs(La)>0.1)
 		if(fabs(yR) > 0.17)
 		{
 			float dummy = roc;
 			float meas_roc = -La/(yR*yR);
+			// float meas_roc = -(yR*yR)/La; //this is also curvature.
 			roc = STEERING_TRUST*(roc+steering_bias) + STEERING_TRUST_1*meas_roc;
 			steering_bias = roc - dummy; //this fixes the problem of understeer/oversteer throwing off roc estimates.
 			if(dummy*meas_roc<0)
@@ -239,6 +256,17 @@ class controller
 		{
 			steering_bias=0; //reset bias to 0 to prevent problems.
 		}
+
+		// if(roc<0.01 and roc>0)
+		// {
+		// 	roc = 0.01;
+		// }
+		// if(roc>(-0.01) and roc<0)
+		// {
+		// 	roc = -0.01;
+		// }
+		// roc = 1/roc; //convert curvature to radius of curvature.
+		
 		if(throttle<THROTTLE_OFFSET)
 		{
 			speed = LPF(0,ground_Speed);//inject the estimated speed into the LPF to prime it until the car is on throttle again.
@@ -294,6 +322,36 @@ class controller
 		return input;
 	}
 
+	float critical_braking_distance(float D, float Cf, float Ci, float Vc)
+	{
+		if(fabs(Ci)>=fabs(Cf))
+		{
+			return D; //return the same distance if the next curvature is less than current because then slope will just come out 0
+		}//this condition ensures fabs(m)>0
+
+		float k = Vc*C_Gain;
+		C_Critical = signum(Cf)*min((Bruh_G/(k*WHEELBASE)),0.1);
+
+		float m,d;
+		m = (Cf - Ci)/D;
+		if(fabs(m)<0.01f)
+		{
+			return D; //because m is ridiculously small.
+		}
+
+		d = (C_Critical - Ci)/m;
+
+		if(d>D)
+		{
+			return D; //if the critical braking distance comes out more than the maximum braking distance, braking distance is the maximum distance
+		}
+		if(d<0)
+		{
+			return WHEELBASE;
+		}
+		return d;
+	}
+
 	//the following function takes the required Curvature, the speed of the car, the measured yaw Rate, measured horizontal accelerations and car's MODE
 	void driver(float C[2], float braking_distance, float V, float drift_ratio, float yawRate, float Ax, float Ay, uint8_t MODE, float inputs[8]) // function to operate the servo and esc.
 	{
@@ -315,14 +373,17 @@ class controller
 		
 		resultant = fast_sqrt(Ax*Ax + Ay*Ay); //resultant horizontal acceleration
 		correction = Curvature_To_Angle(C[0]); //convert radius of curvature to steering angle. this actually depends on wheelbase.
-		yaw_Compensation = (RAD2DEG*V*C[0] - yawRate) - drift_ratio*RAD2DEG;//Expected Yaw rate - measured Yaw rate and compensating for drift
+		yaw_Compensation = (RAD2DEG*V*C[0] - yawRate) - drift_ratio;//Expected Yaw rate - measured Yaw rate and compensating for drift
 		
 		V_target = fast_sqrt(ABSOLUTE_MAX_ACCELERATION/fabs(C[0])); //target maximum velocity
 
 		//braking distance is how much distance we have in front of us to slow down.
 		V1 = fast_sqrt(ABSOLUTE_MAX_ACCELERATION/fabs(C[1]));//max speed at the sharpest portion of the turn TODO : OPTIMIZE
 		
-		braking_distance *= exp(-fabs(C[1])/C_Critical);
+		// braking_distance *= exp(-fabs(C[1])/C_Critical);
+		//TODO: a don't care condition where it doesn't care about braking distance if it is less than certain distance
+		
+		braking_distance = critical_braking_distance(braking_distance,C[1],C[0],V1); //braking distance before critical curvature
 		deceleration_required = V*(V1-V)/braking_distance; //dv/dt = (dv/dx)*(dx/dt) :P. faster than v^2 = u^2 + 2.a.S. note that this value will be -ve
 		if(deceleration_required < SAFE_DECELERATION)//retardation required is more than the safe braking limit.
 		{
@@ -356,56 +417,56 @@ class controller
 				correction = LPF(2,usr_steering);
 			}
 
-			V_error = V_target - V; //speed setpoint - current speed
-			if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
-			{
-				S_V_Error += 0.02f*CLOSED_GAIN*V_error*CONTROL_TIME;
-				Sanity_Check(10,S_V_Error);
-				if(Ha>=0)//if we are already speeding up
-				{
-					backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
-					if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
-					{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
-						backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
-					}
-				}
-				else
-				{
-					backoff = 0;
-				}
-				throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff - 0.5*fabs(yaw_correction(yaw_Compensation)));
+			// V_error = V_target - V; //speed setpoint - current speed
+			// if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
+			// {
+			// 	S_V_Error += 0.02f*CLOSED_GAIN*V_error*CONTROL_TIME;
+			// 	Sanity_Check(10,S_V_Error);
+			// 	if(Ha>=0)//if we are already speeding up
+			// 	{
+			// 		backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
+			// 		if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
+			// 		{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
+			// 			backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
+			// 		}
+			// 	}
+			// 	else
+			// 	{
+			// 		backoff = 0;
+			// 	}
+			// 	throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff - 0.5*fabs(yaw_correction(yaw_Compensation)));
 				
-			}
-			if(V_error< MIN_SPEED_ERROR)//required velocity is less than current velocity.
-			{
-				S_V_Error = 0;
-				if(Ha<=0) //if we are already slowing down
-				{
-					backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
-					if(backoff<0)
-					{
-						backoff = 0;
-					}
-				}
-				else
-				{
-					backoff = 0;
-				}
-				deceleration = V_error*10.0f;//required deceleration - measured deceleration #TBD 
-				if(deceleration<-MAX_ACCELERATION) //prevent reset windup
-				{
-					deceleration = -MAX_ACCELERATION;
-				}
-				throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff + 0.5*fabs(yaw_correction(yaw_Compensation)));
-			}
+			// }
+			// if(V_error< MIN_SPEED_ERROR)//required velocity is less than current velocity.
+			// {
+			// 	S_V_Error = 0;
+			// 	if(Ha<=0) //if we are already slowing down
+			// 	{
+			// 		backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
+			// 		if(backoff<0)
+			// 		{
+			// 			backoff = 0;
+			// 		}
+			// 	}
+			// 	else
+			// 	{
+			// 		backoff = 0;
+			// 	}
+			// 	deceleration = V_error*10.0f;//required deceleration - measured deceleration #TBD 
+			// 	if(deceleration<-MAX_ACCELERATION) //prevent reset windup
+			// 	{
+			// 		deceleration = -MAX_ACCELERATION;
+			// 	}
+			// 	throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff + 0.5*fabs(yaw_correction(yaw_Compensation)));
+			// }
 
 
-			steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
-			throttle = smoother(throttle,last_Throttle,5.0f);
-			calc_speed();
-			set_Outputs_Raw(throttle,steer); //defined in INOUT
+			// steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
+			// throttle = smoother(throttle,last_Throttle,5.0f);
+			// calc_speed();
+			// set_Outputs_Raw(throttle,steer); //defined in INOUT
 
-			return; //good practice
+			// return; //good practice
 		}
 		else if(MODE == MODE_MANUAL)
 		{
@@ -467,11 +528,12 @@ class controller
 			return ; //GTFO 
 		}
 
+		float acceleration_buffer = fast_sqrt(MAX_ACCELERATION_SQ - (V*yR)*(V*yR));
 		V_error = V_target - V; //speed setpoint - current speed
-		if(V_error>MAX_ACCELERATION/2)
+		if(V_error>acceleration_buffer*THROTTLE_TIME_CONSTANT)
 		{
-			V_target = V+MAX_ACCELERATION/2;
-			V_error = MAX_ACCELERATION/2;
+			V_target = V + acceleration_buffer*THROTTLE_TIME_CONSTANT;
+			V_error = acceleration_buffer*THROTTLE_TIME_CONSTANT;
 		}
 		if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
 		{
@@ -511,7 +573,7 @@ class controller
 				deceleration = -MAX_ACCELERATION;
 			}
 			throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff  );
-			throttle = smoother(throttle,last_Throttle,50.0f);
+			throttle = smoother(throttle,last_Throttle,100.0f);
 		}
 
 		steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
