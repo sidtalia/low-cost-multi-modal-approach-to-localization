@@ -11,6 +11,7 @@
 #define CG_HEIGHT (float) 0.03f //assumed cg height. should be about the same as this.
 #define FR_ratio (float) 0.52f //assumed ratio of CG distance from front to the wheelbase
 #define H_WB_ratio (float) CG_HEIGHT/(WHEELBASE*FR_ratio)
+#define H_GBR_INV (float) CG_HEIGHT/(GRAVITY*WHEELBASE*(1 - FR_ratio))
 
 #define STEERING_MAX 25 //25 degrees max steering 
 #define STEERING_PULSE_LOCK2CENTER 372 //pulse difference between center steering and steering at full lock. they might be different for your car.
@@ -45,14 +46,15 @@
 
 #define CRITICAL_YAW (float) 90 //at 1 g, given a 1 m turning radius, yaw rate is roughly 180 degrees
 #define VARIABLE_GAIN (float) (1/CRITICAL_YAW)
-#define LPF_GAIN_THROTTLE (float) 1.0f/637.6 //this is for 200Hz sample rate.
-#define C1_THROTTLE (float) 0.99686
+#define LPF_THROTTLE_FREQ (float) 1.0f
+#define LPF_GAIN_THROTTLE (float) 1.0f/64.6567 //1 Hz LPF for 200Hz sample rate.
+#define C1_THROTTLE (float) 0.969067f
 #define LPF_GAIN_10 (float) 1.0f/7.31375
 #define C1_10 (float) 0.726542
-#define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN)
-#define THROTTLE_TIME_CONSTANT (float) 0.2f
+#define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN) //open loop throttle gain
+#define THROTTLE_TIME_CONSTANT (float) 1/(M_2PI*LPF_THROTTLE_FREQ)
 
-#define LEARNING_RATE (float) dt
+#define LEARNING_RATE (float) 2.0*dt
 
 float yaw_correction(float input)
 {
@@ -126,7 +128,7 @@ class controller
 		//the rest are adjusted accordingly
 		MAX_ACCELERATION = ABSOLUTE_MAX_ACCELERATION;
 		MAX_ACCELERATION_SQ = MAX_ACCELERATION*MAX_ACCELERATION;
-		SAFE_DECELERATION = -0.7*MAX_ACCELERATION;
+		SAFE_DECELERATION = -0.4*MAX_ACCELERATION;
 		BRAKE_GAIN = 500.0f/fabs(SAFE_DECELERATION);
 		mu = (ABSOLUTE_MAX_ACCELERATION/DEFAULT_ABS_MAX_ACC)*DEFAULT_MU;
 		Bruh = 0.19f*mu*H_WB_ratio;
@@ -528,18 +530,19 @@ class controller
 			return ; //GTFO 
 		}
 
-		float acceleration_buffer = fast_sqrt(MAX_ACCELERATION_SQ - (V*yR)*(V*yR));
+		float acceleration_buffer_total = fast_sqrt(MAX_ACCELERATION_SQ - (V*yR)*(V*yR)); //total acceleration on all 4 wheels
+		float acceleration_buffer = acceleration_buffer_total*(FR_ratio + Ha*H_GBR_INV); //total grip on rear wheels (in RWD RWB, the rear wheels provide all the acceleration/deceleration)
 		V_error = V_target - V; //speed setpoint - current speed
-		if(V_error>acceleration_buffer*THROTTLE_TIME_CONSTANT)
+		if(fabs(V_error)>fabs(acceleration_buffer*THROTTLE_TIME_CONSTANT))
 		{
-			V_target = V + acceleration_buffer*THROTTLE_TIME_CONSTANT;
-			V_error = acceleration_buffer*THROTTLE_TIME_CONSTANT;
+			V_target = V + signum(V_error)*acceleration_buffer*THROTTLE_TIME_CONSTANT;
+			V_error = signum(V_error)*acceleration_buffer*THROTTLE_TIME_CONSTANT;
 		}
 		if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
 		{
 			if(Ha>=0)//if we are already speeding up
 			{
-				backoff = 20.0*(resultant - MAX_ACCELERATION + fabs(drift_ratio));//if the resultant is more than the max acceleration, back the fuck off.
+				backoff = RAD2DEG*fabs(drift_ratio);//if the resultant is more than the max acceleration, back the fuck off.
 				if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
 				{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
 					backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
@@ -549,6 +552,7 @@ class controller
 			{
 				backoff = 0;
 			}
+			backoff = 0;
 			throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff );
 			throttle = smoother(throttle,last_Throttle,5.0f);
 
@@ -557,7 +561,7 @@ class controller
 		{
 			if(Ha<=0) //if we are already slowing down
 			{
-				backoff = 20*(resultant - SAFE_DECELERATION + fabs(drift_ratio));//same logic as before
+				backoff = RAD2DEG*fabs(drift_ratio);//same logic as before
 				if(backoff<0)
 				{
 					backoff = 0;
@@ -567,10 +571,11 @@ class controller
 			{
 				backoff = 0;
 			}
+			backoff = 0;
 			preemptive? deceleration = deceleration_required : deceleration = V_error*10.0f;
-			if(deceleration<-MAX_ACCELERATION) //prevent reset windup
+			if(deceleration > -acceleration_buffer)
 			{
-				deceleration = -MAX_ACCELERATION;
+				deceleration = -acceleration_buffer; //prevent wheels from locking up.
 			}
 			throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff  );
 			throttle = smoother(throttle,last_Throttle,100.0f);
