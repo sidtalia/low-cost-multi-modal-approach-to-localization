@@ -257,10 +257,10 @@ public:
 		{
 			d = CONSTRUCT_LENGTH;
 		}
-		int1[0] = X1 + 0.35*my_cos(slope1*DEG2RAD)*d; //57us
-		int1[1] = Y1 + 0.35*my_sin(slope1*DEG2RAD)*d; //67
-		int2[0] = X2 - 0.35*my_cos(slope2*DEG2RAD)*d; //57us
-		int2[1] = Y2 - 0.35*my_sin(slope2*DEG2RAD)*d; //67
+		int1[0] = X1 + THE_RATIO*my_cos(slope1*DEG2RAD)*d; //57us
+		int1[1] = Y1 + THE_RATIO*my_sin(slope1*DEG2RAD)*d; //67
+		int2[0] = X2 - THE_RATIO*my_cos(slope2*DEG2RAD)*d; //57us
+		int2[1] = Y2 - THE_RATIO*my_sin(slope2*DEG2RAD)*d; //67
 	}//248us
 
 	void generate_Slopes(coordinates c[],int16_t n, bool circuit) //MAKE THIS A REAL TIME THING. EACH ANGLECALCY CALL TAKES 40us!!
