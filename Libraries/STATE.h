@@ -67,7 +67,7 @@ public :
 	void state_update(double lon, double lat, bool tick,double Hdop, float GPS_Velocity, float GPS_SAcc, float gHead, float headAcc, float mh, float yawRate, float mh_Error, float Acceleration,float Vacc, float VError,
 						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error,float model[3])
 	{
-		mh += declination;// COMMENT
+		// mh += declination;// COMMENT
 		if(mh >= M_2PI_DEG) // the mh must be within [0.0,360.0]
 		{
 			mh -= M_2PI_DEG;
@@ -165,7 +165,7 @@ public :
 		//CORRECTING VELOCITY FIRST
 		if(OF_V_Error>OP_FLOW_MAX_V_ERROR and GPS_SAcc > MAX_GPS_SAcc) //if optical flow sensor and GPS are both defunct, use the model velocity regardless of speed. 
 		{
-			model[1] = max(model[0],3.0f);
+			model[1] = max(model[0]*10,3.0f);
 			VelGain = VelError/(model[1] + VelError); //encoder_velocity[0] is speed, [1] is error
 			Vacc = (1.0f - VelGain)*Vacc + VelGain*model[0]; //correction step correcting the velocity from the accelerometer section
 			VelError *= (1.0f - VelGain); //TODO : CHECK THE MODEL
@@ -174,7 +174,7 @@ public :
 		//The optical Flow's error skyrockets(goes from a few millimeters (normal) to 1000 meters) when the surface quality is bad or if the sensor is defunct
 		if(Velocity>OP_FLOW_MAX_SPEED) // if velocity is more than 3 m/s, accelerometer becomes reliable. In case that Optical flow error is greater than 1, accelerometer alone is used.
 		{							   //while this does mean that velocity is not corrected for these situations, it is important as during such situations the optical flow is not reliable, at least not ADNS3080
-			OF_V_Error *= 1e3;
+			OF_V_Error *= 1e6;
 			OF_P_Error = OF_V_Error;
 		}	
 		VelGain = VelError/(VelError + OF_V_Error);//the reason why velocity has only one dimension is because the car's motion is constrained. While you could compute the 
@@ -250,7 +250,7 @@ public :
 				Hdop = 1e7;
 			}
 			// if(Hdop<GPS_HDOP_LIM)
-				// Hdop *= 0.2;
+			// 	Hdop *= 0.2;
 			//the gps is assumed to have a circular error, meaing it's error in X direction is equal to it's error in Y direction = Hdop
 			PosGain_X = (past_PosError_X / (past_PosError_X + float(Hdop) )); //new position gain for X (East-West)
 			PosGain_Y = (past_PosError_Y / (past_PosError_Y + float(Hdop) )); //new position gain for Y (North-South)
