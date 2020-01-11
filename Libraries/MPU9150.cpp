@@ -546,7 +546,7 @@ void MPU9150::compute_All()
   }
   //Estimating speed.
   Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// world frame NOTE : due to the LPF, this can report incorrect values when you shake the car. 
-  Sanity_Check(10.0f,Ha);
+  // Sanity_Check(10.0f,Ha);
   La = A[0] - GRAVITY*_sinRoll; //lateral acceleration in global reference. 
   La = LPF(2,La);
   Sanity_Check(10.0f,La);
@@ -558,7 +558,7 @@ void MPU9150::compute_All()
     // radius = 0.05f*radius + 0.95f*encoder_velocity[2]; //this is to make sure we don't have too much noise. encoder_velocity[2] is estimated roc from steering signal 
     radius = encoder_velocity[2]; //this already considers the lateral acceleration so the above 2 lines are not important
     Ha -= (La*DIST_BW_ACCEL_AXLE/radius); //This is the correction for not having the accelerometer at the rear axle
-    Sanity_Check(9.0f,Ha);
+    Sanity_Check(10.0f,Ha);
     //TODO : insert method to trust A/w less when dw/dt is large (Steering angle changing because that's why we get errors in speed bruh)
     // La -= d_Yaw_Radians*(d_Yaw_Radians + 2*yawRadians)*radius; //correction for centrifugal force.
     V_mes = -(La + d_Yaw_Radians*(d_Yaw_Radians + 2*yawRadians)*radius)/yawRadians; //measure velocity as V = A/w, since A = wr.w and wr is the speed.
