@@ -5,13 +5,13 @@
 #define LOOP_FREQUENCY (float) 400
 #define dt_micros (int) 2500
 
-#define ride_height (float) 0.057 //6.2cms height of the sensor.
+#define ride_height (float) 0.0515 //5.15 cms height of the sensor.
 #define DIST_BW_ACCEL_AXLE (float) 0.225// distance between rear axle and accelerometer
 #define COG (float) DIST_BW_ACCEL_AXLE*0.5f //distance between rear axle and COG in meters
 #define OP_POS (float) DIST_BW_ACCEL_AXLE*0.6f
-#define OP_FLOW_MAX_SPEED (float) 7.0
+#define OP_FLOW_MAX_SPEED (float) 6.0
 #define OP_FLOW_MAX_V_ERROR (float) 1000.0
-#define deadBand_ROC (float) OP_POS*5.671f
+#define deadBand_ROC (float) OP_POS/tanf(0.3) //*5.671f
 #define DAMPING (float) 0.4f
 
 #define THROTTLE_OFFSET 1535
@@ -38,7 +38,7 @@
 #define MIN_FEEDBACK_FACTOR 0.7
 #define MIN_SPEED_ERROR (float) -0.5f
 
-#define DECLINATION (float) -5.0f
+#define DECLINATION (float) -1.0f
 #define GPS_GLITCH_SPEED (float) 15.0f //max speed difference that will be tolerated between internal estimate and gps
 
 #define MODE_STOP 0x00
@@ -61,13 +61,14 @@
 #define COMMAND_ID 0x02
 
 #define CONTROL_FREQUENCY LOOP_FREQUENCY/2
-#define FUTURE_TIME (float) 2/CONTROL_FREQUENCY //possible culprit
+#define FUTURE_TIME (float) 4/CONTROL_FREQUENCY //possible culprit
 #define CONTROL_TIME (float) 1000/CONTROL_FREQUENCY //control time in ms
 #define CONTROL_TIME_SEC (float) 1/CONTROL_FREQUENCY
 #define PATH_WIDTH (float) 1.2*1.414 //width of the track.  possible culprit
-#define CONSTRUCT_LENGTH (float) PATH_WIDTH*3.0f
+#define THE_RATIO (float) 0.35f //nsfw category XD
+#define CONSTRUCT_LENGTH (float) PATH_WIDTH/THE_RATIO
 
-#define WP_CIRCLE 0.75 //1/2 meter radius around waypoint. possible culprit
+#define WP_CIRCLE 0.5 //1/2 meter radius around waypoint. possible culprit
 
 #define WP_ID 0x0005
 #define STATE_ID 0x0006
