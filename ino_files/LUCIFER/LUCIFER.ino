@@ -188,7 +188,7 @@ void loop()
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
 //                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
     gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  marg.encoder_velocity[2], opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
+                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
   }
   if(gcs.get_Mode()!=255)//255 is condition for no message received yet.
   {
