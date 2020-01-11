@@ -473,7 +473,7 @@ sanity check : marg.failure ? initialize() : do nothing
 #define MPU9150_DMP_MEMORY_CHUNK_SIZE   16 
 
 #define MPU_LED PC13
-#define ACCEL_SCALING_FACTOR (float) 0.0024412
+#define ACCEL_SCALING_FACTOR (float) 0.002395
 #define GYRO_SCALING_FACTOR  (float) 0.061035
 
 #define GYRO_FILTER_FACTOR (float) (1000*GYRO_SCALING_FACTOR)
@@ -481,7 +481,7 @@ sanity check : marg.failure ? initialize() : do nothing
 #define ACCEL_VARIANCE (float) 0.02 //0.01m/s*s error.
 #define CIRCULAR_VELOCITY_ERROR (float) (ACCEL_VARIANCE/(GYRO_SCALING_FACTOR*DEG2RAD))
 
-#define MAG_UPDATE_TIME (float)0.01
+#define MAG_UPDATE_TIME (float) 0.01f
 #define MAG_UPDATE_TIME_MS (int) (1000*MAG_UPDATE_TIME)
 
 #define EARTH_MAG_STRENGTH (float) 49.0 //earth's magnetic field strength
