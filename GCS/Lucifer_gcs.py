@@ -6,6 +6,7 @@ import traceback
 import matplotlib.pyplot as plt
 plt.ion()
 fig = plt.figure()
+plt.axis('equal')
 import tkinter as tk
 from tkinter import *
 import math as m
@@ -41,6 +42,15 @@ rec = False
 rec_vid = False
 
 print("LUCIFER ver0.0.1")
+
+track_width = 1.2
+
+X_cone = np.array([0, 5.5, 7.0, 5.5, -1.0, -7.0, -6.5, -6.0,0])
+Y_cone = np.array([0, 0, 1.8, 3.7, 3.7, 3.6, 1.8, 0, 0]) + track_width
+
+theta = 26/57.3
+X_cone = m.cos(theta)*X_cone - m.sin(theta)*Y_cone
+Y_cone = m.sin(theta)*X_cone + m.cos(theta)*Y_cone
 
 connection = False
 run = True
@@ -140,11 +150,11 @@ def readSerial():
 	global Tx_ID
 	global Tx_msg_len
 	global saved
-	time.sleep(0.01)
+	time.sleep(0.04)
 	try:
 		num_bytes = com.check_recv()
-		if(num_bytes):
-			time.sleep(0.01)#let all of it in
+		if(num_bytes>=8):
+			# time.sleep(0.05)#let all of it in
 			num_bytes = com.check_recv()
 			message = com.read(num_bytes)
 
@@ -249,6 +259,7 @@ def readSerial():
 					data = np.array([car.X,car.Y,dummy_lon,dummy_lat,car.speed,car.heading,car.pitch,car.roll,acceleration,Vel_Error,opError,pError,Hdop,Exec_time])
 					car.lon.append(data)
 					plt.scatter(car.X,car.Y)
+					plt.scatter(X_cone,Y_cone,label='cones')
 					plt.show()
 				else:
 					if(len(car.lon)):
@@ -508,7 +519,3 @@ class GCS():
 
 gcs = GCS()
 tk.mainloop()
-
-
-
-
