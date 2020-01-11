@@ -418,57 +418,6 @@ class controller
 					usr_steering += 10;
 				correction = LPF(2,usr_steering);
 			}
-
-			// V_error = V_target - V; //speed setpoint - current speed
-			// if(V_error>= MIN_SPEED_ERROR)//Required velocity is greater than the current velocity
-			// {
-			// 	S_V_Error += 0.02f*CLOSED_GAIN*V_error*CONTROL_TIME;
-			// 	Sanity_Check(10,S_V_Error);
-			// 	if(Ha>=0)//if we are already speeding up
-			// 	{
-			// 		backoff = 20*(resultant - MAX_ACCELERATION);//if the resultant is more than the max acceleration, back the fuck off.
-			// 		if(backoff<0)				//as you may have noted, MAX_ACC is the safe maximum g force the car can handle. it is not the absolute maximum
-			// 		{							//therefore the resultant can be higher. If the resultant is higher the max acceleration, the car starts backing
-			// 			backoff = 0;			//off from the throttle or the brakes to keep the car within it's limit of grip
-			// 		}
-			// 	}
-			// 	else
-			// 	{
-			// 		backoff = 0;
-			// 	}
-			// 	throttle = limiter(speed_to_throttle(V_target) + CLOSED_GAIN*V_error - backoff - 0.5*fabs(yaw_correction(yaw_Compensation)));
-				
-			// }
-			// if(V_error< MIN_SPEED_ERROR)//required velocity is less than current velocity.
-			// {
-			// 	S_V_Error = 0;
-			// 	if(Ha<=0) //if we are already slowing down
-			// 	{
-			// 		backoff = 20*(resultant - MAX_ACCELERATION);//same logic as before
-			// 		if(backoff<0)
-			// 		{
-			// 			backoff = 0;
-			// 		}
-			// 	}
-			// 	else
-			// 	{
-			// 		backoff = 0;
-			// 	}
-			// 	deceleration = V_error*10.0f;//required deceleration - measured deceleration #TBD 
-			// 	if(deceleration<-MAX_ACCELERATION) //prevent reset windup
-			// 	{
-			// 		deceleration = -MAX_ACCELERATION;
-			// 	}
-			// 	throttle = limiter(THROTTLE_OFFSET + BRAKE_GAIN*deceleration + backoff + 0.5*fabs(yaw_correction(yaw_Compensation)));
-			// }
-
-
-			// steer = limiter(STEERINGNULL + STEERING_OPEN_GAIN*correction + yaw_correction(yaw_Compensation) ); //open loop + closed loop control 
-			// throttle = smoother(throttle,last_Throttle,5.0f);
-			// calc_speed();
-			// set_Outputs_Raw(throttle,steer); //defined in INOUT
-
-			// return; //good practice
 		}
 		else if(MODE == MODE_MANUAL)
 		{
