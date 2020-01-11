@@ -45,9 +45,9 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
     SQ = surfaceQuality;
     shutter_Speed = float(shutter);
     max_pix = float(pix);
-    if(SQ<10)
+    if(SQ<5)
     {
-      SQ = 10.0f; //sanity check
+      SQ = 5.0f; //sanity check
     }
     V_Error = fabs(error_calc());
     P_Error = V_Error*dt; //replace with 1/(1+(9-SQ*0.11)) if it takes too much processing.
@@ -88,9 +88,13 @@ void  OPFLOW::updateOpticalFlow() //ma-ma-ma-ma-moneeeeyyyy shooooooot
    
 //sensor health check.
   // TODO : insert (in the main code) a method to get the sensor health for all sensors (please?)
-  health += fabs(V_y-omega[2])>=1.0f? 1:-1; //increase health for every glitch that we get, decrease it for every nice reading
-  health = health<=0 ? 0 : health; //ensure the health isn't less than -1
+  health += fabs(V_y-omega[2])>=1.0f || SQ<6.0? 1:-1; //increase health for every glitch that we get, decrease it for every nice reading
+  health = health<=0||health>51 ? 0 : health; //ensure the health isn't less than -1
   failure = health>50? true:false;
+  if(failure)
+  {
+    failure = initialize(); //try re-initializing
+  }
 }
 
 void OPFLOW::reset_ADNS(void)              //reset. used almost never after the setup.
