@@ -23,6 +23,7 @@
 #define exp_spike_k (float) 0.2
 #define spike_k (float) 0.2
 #define spike_d (float) 1
+#define spike_c (float) 20.0
 #define exp_spike_c (float)400.0
 
 static inline __always_inline float fast_sqrt(float x)//inversion of fast inverse square root. :P
@@ -154,7 +155,7 @@ inline __always_inline float my_sin(float a)
 inline __always_inline float spike(float center, float x)
 {
   float i = fabs(center - x);
-  return spike_k/(spike_d + i);
+  return spike_k/(spike_d + spike_c*i);
 }
 
 inline __always_inline float exp_spike(float center, float x)
