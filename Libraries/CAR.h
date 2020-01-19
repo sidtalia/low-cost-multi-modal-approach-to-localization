@@ -54,7 +54,7 @@
 #define OPEN_GAIN_INVERSE (float) (1/OPEN_GAIN) //open loop throttle gain
 #define THROTTLE_TIME_CONSTANT (float) 1/(M_2PI*LPF_THROTTLE_FREQ)
 
-#define LEARNING_RATE (float) 2.0*dt
+#define LEARNING_RATE (float) dt
 
 float yaw_correction(float input)
 {
@@ -332,7 +332,7 @@ class controller
 		}//this condition ensures fabs(m)>0
 
 		float k = Vc*C_Gain;
-		C_Critical = signum(Cf)*min((Bruh_G/(k*WHEELBASE)),0.1);
+		C_Critical = signum(Cf)*min((Bruh_G/(k*WHEELBASE)),0.5);
 
 		float m,d;
 		m = (Cf - Ci)/D;
@@ -365,8 +365,10 @@ class controller
 			return; //maintain a defined control frequency separate from observation frequency. Only used here because synchronising the time stamps across 2 objects would be difficult(sort of. could fix. create a pull request if you want it fixed)
 		}
 
-		float usr_steering = float(int(inputs[7])%100 - 50);
-		float usr_speed_reduction = (inputs[7]- (1050 + usr_steering))/200.0f;
+		float LIDAR_RANGE = (inputs[7] - 1000)*0.0045;
+		LIDAR_RANGE = LIDAR_RANGE <= 4.0f ? LIDAR_RANGE : 1e2;
+		LIDAR_RANGE = max(LIDAR_RANGE,0.1);
+		float obstacle_avoidance_decel = -V*V/LIDAR_RANGE;
 
 		float deceleration, backoff, resultant, correction, yaw_Compensation, V_target, V_error;
 		float V1,deceleration_required;
@@ -392,6 +394,12 @@ class controller
 			V_target = V1; //set that velocity as the setpoint. This keeps happening until the deceleration_required is less than safety limit.
 			preemptive = true;
 		}
+		else if(obstacle_avoidance_decel < SAFE_DECELERATION)
+		{
+			V_target = 0;
+			preemptive = true;
+			deceleration_required = obstacle_avoidance_decel;
+		}
 		else
 		{
 			preemptive = false;
@@ -399,25 +407,12 @@ class controller
 
 		if(MODE == MODE_PARTIAL)
 		{
-			V_target = input_to_speed(inputs[2]);
-
-			if(usr_speed_reduction>=V || usr_speed_reduction>=4.5)
+			V_target = 0;
+			if(obstacle_avoidance_decel > SAFE_DECELERATION)
 			{
-				V_target = 0;
-			}
-			else
-			{
-				V_target -= usr_speed_reduction;
+				V_target = input_to_speed(inputs[2]);
 			}
 			correction = (inputs[0] - STEERINGNULL)*STEERING_OPEN_GAIN_INV;
-			if(fabs(usr_steering)>15)
-			{
-				if(usr_steering>0)
-					usr_steering -= 10;
-				else
-					usr_steering += 10;
-				correction = LPF(2,usr_steering);
-			}
 		}
 		else if(MODE == MODE_MANUAL)
 		{
