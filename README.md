@@ -90,7 +90,7 @@ The system has multiple failsafes (note that the car can be operated in auto mod
 
 For the hardware specifications (including wiring specifications), 3d print files as well as 2 d drawings, go into the "hardware folder". 
 
-For the back end libraries, go into the "libraries folder"(currently unavailable).
+For the back end libraries, go into the "libraries folder".
 
 1) You will need : Arduino IDE (1.6.13 or better)
 
