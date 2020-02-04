@@ -65,7 +65,16 @@ void setup()
   int16_t A[3],G[3],M[3],T,gain[3];
   if(!check_memory()) //if there are no offsets in the memory
   {
-    bool avail = gcs.Get_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT,marg.axis_gain);
+    bool avail = false;
+    long check_time = millis();
+    while(!avail)
+    {
+      avail = gcs.Get_Offsets(marg.offsetA, marg.offsetG, marg.offsetM, marg.offsetT,marg.axis_gain);
+      if(avail || millis()-check_time>10000)
+      {
+        break;
+      }
+    }
     if(avail)//if GCS already has offsets
     {
       marg.getOffset(A,G,M,T,gain);
@@ -164,8 +173,9 @@ void loop()
   gps.localizer(); //update gps. 12us
   //till here it takes 180us, total at 1170us
   //================SENSOR FUSION===================
-  car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, gps.gSpeed, gps.Sdop, gps.headMot, gps.headAcc, marg.mh, marg.mh_Error, marg.yawRate, marg.Ha, marg.V, marg.V_Error,
-             opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error,marg.encoder_velocity); //I know i could've just passed the gps, marg and optical
+  car.state_update(gps.longitude, gps.latitude, gps.tick, gps.Hdop, gps.gSpeed, gps.Sdop, gps.headMot, gps.headAcc,
+                  marg.mh, marg.mh_Error, marg.yawRate, marg.heading_drift, marg.Ha, marg.V, marg.V_Error,
+                  opticalFlow.X, opticalFlow.Y, opticalFlow.V_x, opticalFlow.V_y, opticalFlow.P_Error, opticalFlow.V_Error,marg.encoder_velocity); //I know i could've just passed the gps, marg and optical
                               //flow objects but then the state library would become dependent on these libraries and for some unkown reason I want to keep it a bit more generic
   marg.Velocity_Update(car.Velocity,car.VelError,car.AccBias);//pass the corrected velocity back to marg where it gets low pass filtered too.
   
@@ -188,7 +198,7 @@ void loop()
 //    gcs.Send_State(MODE, double(gps.VelNED[1]),double(gps.VelNED[0]) ,gps.longitude, gps.latitude, gps.gSpeed, marg.mh, marg.pitch, marg.roll, 
 //                  gps.headVeh, gps.headMot, car.PosError_tot , marg.mh_Error, 3.16, T,gps.Hdop); //also regulated at 10Hz
     gcs.Send_State(MODE, double(car.X), double(car.Y),gps.longitude, gps.latitude, car.Velocity, marg.mh, marg.pitch, marg.roll, 
-                  marg.Ha, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
+                  marg.heading_drift, opticalFlow.SQ, car.PosError_tot , marg.mh_Error, car.VelError, T,gps.Hdop, jevois.rec_status()); //also regulated at 10Hz
   }
   if(gcs.get_Mode()!=255)//255 is condition for no message received yet.
   {
