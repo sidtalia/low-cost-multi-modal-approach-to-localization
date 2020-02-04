@@ -63,9 +63,21 @@ public :
 		declination = 0;
 	}
 
+	void rotate_point(float &x, float &y, float gyro_drift)
+	{
+		float _x = x;
+		float _y = y;
+		float th = gyro_drift*DEG2RAD;
+		float cost = cosf(th);
+		float sint = sinf(th);
+		x = _x*cost - _y*sint;
+		y = _y*cost + _x*sint;
+	}
+
 	//fuse GPS, magnetometer, Acclereometer, Optical Flow
-	void state_update(double lon, double lat, bool tick,double Hdop, float GPS_Velocity, float GPS_SAcc, float gHead, float headAcc, float mh, float yawRate, float mh_Error, float Acceleration,float Vacc, float VError,
-						  float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error,float model[3])
+	void state_update(double lon, double lat, bool tick,double Hdop, float GPS_Velocity, float GPS_SAcc, float gHead, float headAcc,
+					 float mh, float mh_Error, float yawRate, float mh_drift, float Acceleration,float Vacc, float VError,
+					 float OF_X, float OF_Y, float OF_V_X, float OF_V_Y, float OF_P_Error, float OF_V_Error, float model[3])
 	{
 		// mh += declination;// COMMENT
 		if(mh >= M_2PI_DEG) // the mh must be within [0.0,360.0]
@@ -219,6 +231,8 @@ public :
 		
 		X += sinmh*OF_X; // the body frame X axis movement has no other source of information, so therefore there can be no filtering for it.
 		Y -= cosmh*OF_X;
+
+		//rotate_point(X,Y,mh_drift);
 
 		//POSITION ESTIMATION USING GPS + ESTIMATED POSITION FROM PREVIOUS METHODS
 		if(tick && !position_reset )//if new GPS data was received and the data is useful, fuse it with the estimates(because why would you want to fuse garbage into garbage)
