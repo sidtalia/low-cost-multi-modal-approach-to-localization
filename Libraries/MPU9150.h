@@ -483,6 +483,7 @@ sanity check : marg.failure ? initialize() : do nothing
 
 #define MAG_UPDATE_TIME (float) 0.01f
 #define MAG_UPDATE_TIME_MS (int) (1000*MAG_UPDATE_TIME)
+#define MAG_UPDATE_RATE (float) 100.0f
 
 #define EARTH_MAG_STRENGTH (float) 49.0 //earth's magnetic field strength
 #define EARTH_MAG_DIP (float) 45.0 //angle of dip
@@ -570,6 +571,7 @@ class MPU9150 {
         float mag_mag;
         float encoder_velocity[3],encoder_feedback;
         float radius;
+        float heading_drift;
 
         
     private:
