@@ -53,6 +53,7 @@ MPU9150::MPU9150() {
     mh_Error = 0;
     pitch_Error = 0;
     roll_Error = 0;
+    heading_drift = 0;
     for(int i =0;i<4;i++)
     {
       lastG[i] = 0;
@@ -541,7 +542,8 @@ void MPU9150::compute_All()
     mh = (1.0f-mag_gain)*mh + mag_gain*(mag_head);
     innovation[2] -= mh; //actual innovation
     mh_Error *= (1.0f-mag_gain); //reduce the error.
-    gyro_Bias[2] += mag_gain*innovation[2]*dt;//adjust bias
+    gyro_Bias[2] += mag_gain*innovation[2]*MAG_UPDATE_RATE;//adjust bias
+    heading_drift = innovation[2]; //integrate heading drift.
   }
   //Estimating speed.
   Ha = (A[1] + GRAVITY*_sinPitch)*cosPitch - bias;// world frame NOTE : due to the LPF, this can report incorrect values when you shake the car. 
