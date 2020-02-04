@@ -114,7 +114,7 @@ public:
 		write_To_Port(CONFIG_ID,2); //tell the GCS that I want them sweet sweet configs.
 		write_To_Port(0x01,2);
 
-		delay(1000);//wait 1 second for the data to come in
+		delay(100);//wait 1 second for the data to come in
 		if(Serial.available())
 		{
 			START_ID = Serial.read()|int16_t(Serial.read()<<8); //start sign
