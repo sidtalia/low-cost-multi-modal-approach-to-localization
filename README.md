@@ -32,7 +32,8 @@ The odometry is obtained by fusing data from GPS, optical flow, IMU+compass and 
 
 Test for localization accuracy: https://youtu.be/GbBbyxaOqpI
 
-Research paper (pre-print) for the same: https://drive.google.com/file/d/17Mg2iwEAEu-QG66P9JCzuJ3Squ-TULqJ/view?usp=sharing (Presented, RDCAPE 2019)
+Research paper for the same: https://ieeexplore.ieee.org/abstract/document/8979000
+If this work is useful to you, please cite it! I'm a budding researcher and every citation goes a long way! :)
 
 ### Waypoint generation:
 Currently you'll need to enter the x,y locations of the cones and corresponding initial guesses for the waypoints (because some cones are on the inside and some on the outside of the turn so I don't really have a way to automate the initial guesses at the moment) and the track width into the waypoint_test.py program. It will then produce a set of waypoints that produce a minimum curvature trajectory.
