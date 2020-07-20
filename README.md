@@ -1,7 +1,9 @@
 # Self-driving-car-STM-32
 (Note: The project is still in progress and there are many things yet to be implemented. I also do need to improve the documentation so please cut me some slack if I missed out on something :P ). (Project is currently in stasis due to the pandemic).
 This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle.
+
 ![image](https://user-images.githubusercontent.com/24889667/64060910-eec52d80-cbf0-11e9-99f2-20f1574e10d9.png)
+
 The first, second and third (current iteration). The first one had the connections hot-glued instead of soldered (yes). It has a come a long way since then.
 
 The first version was built on a single Arduino Uno, the second on a pro-mini and the third one on an STM32F103C8T6 (aka the 'blue pill'). In all these projects, my aim has been to keep the cost of the controller and hardware as low as possible. This does put a limitation on how much processing power I can have but that's really where all the fun is; to send a rocket to the moon with computational power less than that of a modern wristwatch.
