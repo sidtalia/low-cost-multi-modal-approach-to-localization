@@ -8,7 +8,7 @@ The above images show the first, second and third (current iteration) in that or
 
 The first version was built on a single Arduino Uno, the second on a pro-mini and the third one on an STM32F103C8T6 (aka the 'blue pill'). In all these projects, my aim has been to keep the cost of the controller and hardware as low as possible. This does put a limitation on how much processing power I can have but that's really where all the fun is; to send a rocket to the moon with computational power less than that of a modern wristwatch.
 
-Oh and by the way, its rear wheel drive, which only makes the control problem harder.
+Oh and by the way, only the rear wheels get power, i.e., its a rear-wheel-drive and rear-wheel-braking setup (imagine racing with a R.W.D car and using the hand brakes instead of normal brake pedals. Yikes!).
 
 Roadmap:
 - [x] Outdoor relative localization (or odometry as most people like to call it)
