@@ -1,5 +1,5 @@
 # Self-driving-car-STM-32
-(Note: The project is still in progress and there are many things yet to be implemented. I also do need to improve the documentation so please cut me some slack if I missed out on something :P ).
+(Note: The project is still in progress and there are many things yet to be implemented. I also do need to improve the documentation so please cut me some slack if I missed out on something :P ). (Project is currently in stasis due to the pandemic).
 This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle.
 ![image](https://user-images.githubusercontent.com/24889667/64060910-eec52d80-cbf0-11e9-99f2-20f1574e10d9.png)
 The first, second and third (current iteration). The first one had the connections hot-glued instead of soldered (yes). It has a come a long way since then.
@@ -14,7 +14,7 @@ Roadmap:
 - [x] Trajectory generation and following
 - [x] Preemptive braking to allow for faster speeds (Tested upto 8m/s on worn out tires. Will test again with new tires (normal medium soft compound)
 - [x] Offline trajectory optimization given a set of waypoints (x,y) with a margin of adjustment and track width. 
-- [ ] SONAR/LIDAR based obstacle avoidance for emergency braking (Mostly dealing with interference here. Should be dealt with soon).
+- [ ] SONAR/LIDAR based obstacle avoidance for emergency braking (for some reason this part is taking a while).
 - [ ] Landmark based localization using computer vision (Jevois A33)
 - [ ] Opponent detection using Object matching (may or may not be faster than object detection) (Jevois A33)
 - [ ] Realtime trajectory update for overtaking
@@ -35,6 +35,9 @@ Test for localization accuracy: https://youtu.be/GbBbyxaOqpI
 Research paper for the same: https://ieeexplore.ieee.org/abstract/document/8979000
 If this work is useful to you, please cite it! I'm a budding researcher and every citation goes a long way! :)
 
+### Trajectory generation:
+The trajectory is generated from given waypoints using parametric curves (3rd order Bezier curves). The paper:"Alonzo Kelly and Bryan Nagy; Reactive Nonholonomic Trajectory Generation via Parametric Optimal Control" (http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.88.8908&rep=rep1&type=pdf) highlights the advantages of using parametric curves for the same. The motivation for me to use parametric curves was to reduce computation and memory requirements, as this codebase has to run on a tiny STM32F100 microcontroller.
+
 ### Waypoint generation:
 Currently you'll need to enter the x,y locations of the cones and corresponding initial guesses for the waypoints (because some cones are on the inside and some on the outside of the turn so I don't really have a way to automate the initial guesses at the moment) and the track width into the waypoint_test.py program. It will then produce a set of waypoints that produce a minimum curvature trajectory.
 
@@ -43,7 +46,7 @@ Currently you'll need to enter the x,y locations of the cones and corresponding 
 The next step is to make this less dependent on human input, like the work done here: https://github.com/a1k0n/cycloid (shoutout to a1k0n). 
 
 ### Control
-The control is based on bezier curve(3rd order) based trajectory generation. Code for offline trajectory optimization is in Testing right now (Test codes). There is also support for pre-emptive braking (more on that later) as a replacement for a real time velocity profile generator.
+The control is based on bezier curve(3rd order) based trajectory generation. Code for offline trajectory optimization is in Testing right now (Test codes). There is also support for pre-emptive braking (more on that later).
 
 The speed control uses an asymmetric non-linear controller. Big words? Here's a simpler explanation:
 1) The car does not speed up and slow down in the same way; the response of the brakes is different from the response of the throttle, therefore there is asymmetry in the process being controlled.
@@ -54,7 +57,7 @@ The speed control uses an asymmetric non-linear controller. Big words? Here's a 
 This means that in order to control the speed, I'd need a controller that compensates for both these problems and hence the big-words.
 The steering control is an open + closed loop progressive P controller (progressive as in the gain increases with the error, like in a progressive spring). The combination of these 2 controllers allows the car to remain under control for the most part even without preemptive braking.
 
-The control system can update the friction coefficient of the surface if it detects that the car is sliding when turning, and if it does enter a slide, it can handle itself ;)
+The control system can update the friction coefficient of the surface if it detects that the car is sliding when turning (by using optical flow data), and if it does enter a slide, it can handle itself ;)
 ![GifMaker_20190831155907193](https://user-images.githubusercontent.com/24889667/64062747-533fb700-cc08-11e9-962e-d4252096618a.gif)
 
 The system is also capable of preemptive braking, i.e., slowing down before the turn(as done in racing) instead of slowing down while turning.
