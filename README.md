@@ -1,14 +1,15 @@
 # Self-driving-car-STM-32
 (Note: The project is still in progress and there are many things yet to be implemented. I also do need to improve the documentation so please cut me some slack if I missed out on something :P ). (Project is currently in stasis due to the pandemic).
-This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle.
+
+This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle. While the title does say its a self driving car project, the focus is actually on aggressive driving. 
 
 ![image](https://user-images.githubusercontent.com/24889667/64060910-eec52d80-cbf0-11e9-99f2-20f1574e10d9.png)
 
 The above images show the first, second and third (current iteration) in that order. The first one had the connections hot-glued instead of soldered (yes). It has a come a long way since then.
 
-The first version was built on a single Arduino Uno, the second on a pro-mini and the third one on an STM32F103C8T6 (aka the 'blue pill'). In all these projects, my aim has been to keep the cost of the controller and hardware as low as possible. This does put a limitation on how much processing power I can have but that's really where all the fun is; to send a rocket to the moon with computational power less than that of a modern wristwatch.
+The first and second versions were built on the Atmega328P and the third one on the STM32F103C8T6 (aka the 'blue pill'). In all these projects, my aim has been to keep the cost of the controller and hardware as low as possible. This does put a limitation on how much processing power I can have but that's really where all the fun is; to send a rocket to the moon with computational power less than that of a modern wristwatch.
 
-Oh and by the way, only the rear wheels get power, i.e., its a rear-wheel-drive and rear-wheel-braking setup (imagine racing with a R.W.D car and using the hand brakes instead of normal brake pedals. Yikes!).
+Oh and by the way, only the rear wheels get power, i.e., its a rear-wheel-drive and rear-wheel-braking setup (imagine racing with a R.W.D car and using the hand brakes instead of normal brake pedals. Yikes!). This only makes the control problem more interesting.
 
 Roadmap:
 - [x] Outdoor relative localization (or odometry as most people like to call it)
@@ -16,21 +17,20 @@ Roadmap:
 - [x] Trajectory generation and following
 - [x] Preemptive braking to allow for faster speeds (Tested upto 8m/s on worn out tires. Will test again with new tires (normal medium soft compound)
 - [x] Offline trajectory optimization given a set of waypoints (x,y) with a margin of adjustment and track width (WIP) 
-- [ ] SONAR/LIDAR based obstacle avoidance for emergency braking (for some reason this part is taking a while).
-- [ ] Landmark based localization using computer vision (Jevois A33)
+- [ ] SONAR/LIDAR based obstacle avoidance for emergency braking (This part is taking a while because apparently cheap lidars don't work well in outdoor environments).
 - [ ] Opponent detection using Object matching (may or may not be faster than object detection) (Jevois A33)
-- [ ] Realtime trajectory update for overtaking
-- [ ] Designing overtaking policies.
+- [ ] Realtime trajectory update for overtaking (WIP)
+- [ ] Designing overtaking policies (WIP. Currently learning about multi-agent navigation in UW's MUSHR project).
 
 ### About the project
 The car can race around a track given a set of waypoints (already optimized for minimum laptimes). An offline optimizer does the job of optimization (Test Codes folder, waypoint.py). It can also act as a low level controller for higher level agents. The car can be given a point (X,Y,theta) relative to it's current location. Ideally, the higher level agent should give waypoints that do not force the car to go through an obstacle (that's kind of the point of having a higher level agent). The lower level controller takes care of figuring out the throttle and steering control for getting to a particular point.
 
 ### Odometry and localization
-The localization is supposed to happen in open outdoor environments using a filtered GPS data. I make the assumption that there is no exploitable feature in the environment. This is mostly because a system dependent on discernable features in the environment would not work as well in environments where there are none. The user can always add their own way of localization and simply send the location data to the low level controller (the support for this will be incorporated soon). Most projects like these should be tested in wide open spaces for the sake of safety and so GPS based localization made the most sense as it is the most "generic" way of localization.
+The localization is supposed to happen in open outdoor environments primarily using GPS data. I make the assumption that there is no exploitable feature in the environment. This is mostly because a system dependent on discernable features in the environment would not work as well in environments where there are none (CV techniques won't work in wide open parking lots). The user can always add their own way of localization and simply send the location data to the low level controller (the support for this will be incorporated if someone actually wants it). Most projects like these should be tested in wide open spaces for the sake of safety and so GPS based localization made the most sense as it is the most "generic" way of localization.
 
 ![image](https://user-images.githubusercontent.com/24889667/64061985-13280680-cbff-11e9-98cb-fa1b4d33b29a.png)
 
-The odometry is obtained by fusing data from GPS, optical flow, IMU+compass and also from a simplistic model of the car's propulsion system, although the last method is kept as a last-resort under multiple sensor failures. The state estimator also exploits the non-holonomic constraints. Using multiple sources of information allows the car to operate with a high degree of accuracy (long term) when all the sensors are operating in peak condition and with an acceptable level of accuracy when one or two of the sensors are not in peak condition. The odometry assumes that the car is moving on a flat, horizontal plane (fair assumption for a car that has a ride height of 15 mm and is unlikely to go off-roading).
+The odometry is obtained by fusing data from GPS, optical flow, IMU+compass and also from a simplistic model of the car's propulsion system, although the last method is kept as a last-resort under multiple sensor failures. The state estimator also exploits the non-holonomic constraints, using which it can get a speed measurement while the car is turning. Using multiple sources of information allows the car to operate with a high degree of accuracy (long term) when all the sensors are operating in peak condition and with an acceptable level of accuracy when one or two of the sensors are not in peak condition. The odometry assumes that the car is moving on a flat, horizontal plane (fair assumption for a car that has a ride height of 15 mm and is unlikely to go off-roading, however, the system can be extended to work on non-planar environments pretty easily).
 
 Test for localization accuracy: https://youtu.be/GbBbyxaOqpI
 
@@ -48,7 +48,7 @@ Currently you'll need to enter the x,y locations of the cones and corresponding 
 The next step is to make this less dependent on human input, like the work done here: https://github.com/a1k0n/cycloid (shoutout to a1k0n). 
 
 ### Control
-The control is based on bezier curve(3rd order) based trajectory generation. Code for offline trajectory optimization is in Testing right now (Test codes). There is also support for pre-emptive braking (more on that later).
+The control is based on bezier curve(3rd order) based trajectory generation. There is also support for pre-emptive braking (more on that later).
 
 The speed control uses an asymmetric non-linear controller. Big words? Here's a simpler explanation:
 1) The car does not speed up and slow down in the same way; the response of the brakes is different from the response of the throttle, therefore there is asymmetry in the process being controlled.
@@ -68,7 +68,7 @@ Video link for preemptive braking :  https://www.youtube.com/watch?v=Ko5H_G4eCLo
 The car has a trajectory, it then finds the point of maximum curvature along that trajectory (upto the next checkpoint or waypoint) and determines maximum allowable speed for that curvature with some margin. The car then determines whether it should start slowing down for that point or not, on the basis of the deceleration required to hit that speed at that point. A more detailed discussion was done here (scroll down to the 5th last post which includes hand written notes): https://github.com/a1k0n/cycloid/pull/3
 
 ### Vision component: 
-I have just started with computer vision please wait a couple of years uwu.
+I have just started with computer vision please wait a couple of years.
 
 ### Ground control system and V2V communications:
 The previous iterations did not have a GCS. This made debugging extremely hard as there wasn't an option of data recording or viewing the internal state of the controller in real time. The GCS in this work has the bare minimum features needed for debugging and is not on par with GCS's like Missionplanner or Qgroundcontrol, however, it gets the job done. The GCS allows me to record data that I could use for debugging as well as for finding flaws in the system. It can plot the position data from the car in real time.
@@ -76,7 +76,7 @@ The previous iterations did not have a GCS. This made debugging extremely hard a
 The car is equipped with an Xbee pro (2.4GHz) and so is the GCS (GCS here can be your laptop). The actual purpose of the Xbee was not just for communication with the GCS for debugging and monitoring, but rather to allow multiple agents to communicate with each other, meaning that the car is V2X ready from the hardware's point of view. I got the inspiration to do this from a project I did last year under Celestini Program India at IIT-Delhi where I worked on ADAS coupled with V2V communication: https://github.com/Celestini-Lucifer/ADAS
 
 # Note for potential users : 
-The car will not operate without a GCS by default. This is for safety purposes and not for the sake of functionality. If the car were to operate without a GCS connection and only be in control of the user via the on board Radio control, there would be a single point of failure in communications. Adding the GCS-compulsion gives the system 2 independent points of failure. This also compulsorily limits the range of operation (which depends on the kind of transceiver used. For xbee pros, this range is ~80 meters, which is more than enough for doing experiments with a 1/10 scale car.)
+The car will not operate without a GCS by default. This is for safety purposes and not for the sake of functionality. If the car were to operate without a GCS connection and only be in control of the user via radio control, there would be a single point of failure in communications. Adding the GCS-compulsion gives the system 2 independent points of failure. This also compulsorily limits the range of operation (which depends on the kind of transceiver used. For xbee pros, this range is ~80 meters, which is more than enough for doing experiments with a 1/10 scale car.)
 
 The system has multiple failsafes (note that the car can be operated in auto modes without the transmitter, but it is advised to always keep a transmitter with you as a failsafe).
 1) If the car goes outside the range of the GCS (Xbee, ~80 meters) the car will come to a halt. If the user wants to recover it, they have to move a 3 position switch on their Flysky Transmitter to the middle position for manual control (refer to the hardware folder for BOM). 
