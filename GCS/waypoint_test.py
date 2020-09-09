@@ -3,28 +3,24 @@ import matplotlib.pyplot as plt
 import math as m
 from Bezier import *
 import time
+from scipy.optimize import minimize
+from sklearn.preprocessing import normalize
 
-RAD2DEG = 57.3
-DEG2METER = 111392.84
-DEG2RAD = 1/57.3
-# X = np.array([0, 3, 6, 3, 1,-1,  1, 2, 4, 2, 1,-0.5,-1.4,-2,-2.7,-4,-4.5,-6.5,-3,0])
-# Y = np.array([0, 0, 3, 6, 6,4.5, 3, 3, 2, 1, 1, 1.4, 2.5, 4, 5.4, 6, 6.0, 3.0, 0,0])
-# X =  1.5*np.array([0, 3, 6, 4, 0,-4, -6,-3,0])
-# Y = 1.25*np.array([0, 0, 3, 6, 2, 6,  3, 0,0])
-# X = np.array([0, 3, 6, 1, -1, 2, 4, 2,-3,-6,-3,0])
-# Y = np.array([0, 0, 4, 6,4.5, 3, 2, 1, 5.5, 4, 0,0])
-track_width = 1.2
-set_track_width(track_width*m.sqrt(2))
-cone_radius = 0.3
+track_width = 1.4
+set_track_width(track_width+0.1+0.5)
+set_V_A_lim(14,10,5)
+cone_radius = 0.15+0.1
 center_offset = track_width/2
+# X_origin = 47.4
+# Y_origin = 49.4
+# X_cone = np.array([56,74.5,  82,82.2,58.5,39.6,54.5,  46,68.7,82.3]) - X_origin
+# Y_cone = np.array([72,52.7,33.5, 3.7, 3.2,36.5,35.8,83.7,83.7,70.1]) - Y_origin
+# X = np.array([47.4, 51.7, 80.5, 74.1, 88.5, 54.8,47.4]) - X_origin
+# Y = np.array([49.4, 79,   53,   33.1,-1.58,-4.33,49.4]) - Y_origin
 X_cone = np.array([0, 5.5, 7.0, 5.5, -1.0, -7.0, -6.5, -6.0,0])
 Y_cone = np.array([0, 0, 1.8, 3.7, 3.7, 3.6, 1.8, 0, 0]) + track_width
-# X = np.array([0, 3.0205, 4.8495+center_offset, 3.0205, 0.1085,-3.0205,-3.0205,0])
-Y = np.array([0, Y_cone[1]-center_offset, Y_cone[2], Y_cone[3]+center_offset, Y_cone[4] -center_offset, Y_cone[5]+center_offset, Y_cone[6], Y_cone[7]-center_offset, 0])
-X = np.array([X_cone[0], X_cone[1], X_cone[2]+center_offset, X_cone[3], X_cone[4], X_cone[5],X_cone[6]-track_width, X_cone[7], X_cone[8]])
-# X = np.array([0, 3, 6, 1, -1, 2, 4, 2,-3,-6,-3,0])
-# Y = np.array([0, 0, 4, 6,4.5, 3, 2, 1, 5.5, 4, 0,0])
-
+Y = np.array([0, Y_cone[1]-center_offset, Y_cone[2], Y_cone[3]+center_offset, Y_cone[4] -center_offset, Y_cone[5]+center_offset, Y_cone[6],Y_cone[7]-center_offset, 0])
+X = np.array([X_cone[0], X_cone[1], X_cone[2]+center_offset, X_cone[3], X_cone[4], X_cone[5], X_cone[6]-track_width, X_cone[7], X_cone[8]])
 X_0 = np.copy(X)
 Y_0 = np.copy(Y)
 
@@ -35,6 +31,7 @@ rot_Y = m.sin(theta)*X + m.cos(theta)*Y
 X = rot_X
 Y = rot_Y
 slope = generate_slopes(X,Y)
+slope_0 = np.copy(slope)
 
 
 dims = 3
@@ -49,142 +46,84 @@ state[2,:] = theta
 state_0 = np.copy(state) # create a copy that will be used later as reference
 # set state radius
 state_radius = np.zeros(dims)
-state_radius[0] = 40 # +/- degrees of slope
+state_radius[0] = 30 # +/- degrees of slope
 state_radius[1] = center_offset - cone_radius # +/- meters offset for waypoint
 state_radius[2] = 2*m.pi
-# change in state used for evaluating partial derivative:
-delta = np.zeros(dims)
-delta[0] = 0.01 # 1 degree
-delta[1] = 0.001 # 0.01 meters shift
-delta[2] = 0.001 # 0.01 meters shift
-# change in state due to change in variable:
-delta_state = np.zeros_like(state)
-# cost of each section
-cost = np.zeros_like(slope)
-last_cost = np.zeros_like(slope)
-n = len(X)
-N = 200
-iterations = 1
-tracker = np.zeros(iterations*N)
-error = np.zeros_like(state)
-last_error = np.zeros_like(state)
-s_error = np.zeros_like(state)
-d_error = np.zeros_like(state)
+
+tracker = []
+
+list_k = []
+list_dk = []
+list_d2k = []
+
+def total_cost(state):
+    global slope
+    cost = np.zeros_like(slope)
+    n = len(X)
+    global X_0
+    global Y_0
+    global slope_0
+    X_ = state[n:2*n]*np.cos(state[2*n:3*n]) + X_0
+    Y_ = state[n:2*n]*np.sin(state[2*n:3*n]) + Y_0 #new X,Y slope
+    slope_ = state[:n] + slope_0
+    total_cost = np.sum(net_cost(X_,Y_,slope_))
+    tracker.append(total_cost)
+    return total_cost
 
 
-def total_cost(X,Y,slope):
-	cost = np.zeros_like(slope)
-	n = len(X)
-	for i in range(len(slope)-1):
-		s = i%n
-		f = (i+1)%n
-		cost[s] = s_k(X[s], Y[s], slope[s], X[f], Y[f], slope[f])
-	total_cost = np.sum(cost)
-	return total_cost
+b = []
+b.append((0,state_radius[0]))
+b.append((0,state_radius[1]))
+b.append((0,state_radius[2]))
 
-def local_cost(X,Y,slope,i):
-	cost = np.zeros(2)
-	n = len(X)
-	s = (i-1)%n
-	f = i%n
-	cost[0] = s_k(X[s], Y[s], slope[s], X[f], Y[f], slope[f])
-	s = f
-	f = (i+1)%n
-	# print(s,f)
-	cost[1] = s_k(X[s], Y[s], slope[s], X[f], Y[f], slope[f])
-	local_cost = m.fabs(cost[1]+cost[0])
-	return local_cost
+bnds = []
+for j in range(3):
+    for i in range(len(X)):
+        bnds.append(b[j])
 
-kp = 10/N
-ki = 10/N
-kd = 0/N
+bnds = tuple(bnds)
+x0 = state.flatten()
+W = np.array([1/0.06308,   1/0.18079,   1/0.038584, 1/10.647723798100904, 10, 1])# last 2 terms are weightages for continuity
+set_normalization_weights(W)
+Q = np.array([1,0,0,0,0,1,1]) # last 3 terms are weightages for continuity
+set_term_weights(Q) 
+res = minimize(total_cost, x0, bounds = bnds, method='SLSQP')
+x0 = res.x
+state = x0.reshape((3,len(X)))
 
-def check(x,origin,delta):
-	if(x > origin + delta):
-		x = origin + delta
-		return x
-	if(x < origin - delta):
-		x = origin - delta
-		return x	
-	return x
-
-min_cost=1e3
-min_cost_state = np.copy(state)
-count = 0
-for j in range(iterations):
-	count+=1
-	for _ in range(N):
-		for i in range(len(slope)-1):
-			s = i%n
-			f = (i+1)%n
-			cost[s] = s_k(X[s], Y[s], slope[s], X[f], Y[f], slope[f])
-		
-		for i in range(1,len(slope)-1):
-			for k in range(dims):
-				dummy = state[k][i]
-				base = local_cost(X,Y,state[0,:],i) #X,Y,slope
-				state[k][i] += delta[k]
-				X_ = state[1,:]*np.cos(state[2,:]) + X_0
-				Y_ = state[1,:]*np.sin(state[2,:]) + Y_0 #new X,Y slope
-				new = local_cost(X_,Y_,state[0,:],i)
-				state[k][i] = dummy
-				delta_state[k][i] = (new - base)/delta[k]#dy/dx 
-		
-		tracker[_+j*N] = np.sum(cost)
-		if(tracker[_+j*N]<min_cost):
-			min_cost_state = state
-			min_cost = tracker[_+j*N]
-		
-		for i in range(len(slope)):
-			for k in range(dims):	
-				error[k][i] = cost[i]*delta_state[k][i]
-				d_error[k][i] = error[k][i] - last_error[k][i]
-				s_error[k][i] += error[k][i]/N
-				last_error[k][i] = error[k][i]
-				PID = kp*error[k][i] + ki*s_error[k][i] + kd*d_error[k][i]		
-				state[k][i] -= PID
-				state[k][i] = check(state[k][i],state_0[k][i],state_radius[k])
-				# state[k][0] = 0
-				# state[k][-1] = 0
-
-		# state[1][-3] = state_0[1][-3]+center_offset/2
-		# state[2][-3] = state_0[2][-3]-center_offset/2
-		slope = state[0,:]
-		X = state[1,:]*np.cos(state[2,:]) + X_0
-		Y = state[1,:]*np.sin(state[2,:]) + Y_0 #new X,Y slope
-	state = np.copy(min_cost_state) #after each N passes, it starts over from the state vector that produced the least cost.
-# print(min_cost_state)
-slope = state[0,:]
 X = state[1,:]*np.cos(state[2,:]) + X_0
 Y = state[1,:]*np.sin(state[2,:]) + Y_0 #new X,Y slope
-bx,by =  get_bezier_track(X,Y,slope)
-print(slope)
+slope = state[0,:] + slope_0
+print(state[0,:])
 
-# data = np.load('LUCIFER_log_2019_10_18_8_47.npy')
-# coords = data[:,0:4]
-# filtered = coords[:,0:2]
-# lon = filtered[:,0]
-# lat = filtered[:,1]
+bx,by =  get_bezier_track(X,Y,slope)
+
 plt.figure()
 plt.plot(np.arange(0,len(tracker),1),tracker,label='cost')
 plt.show(block=False)
 
 plt.figure()
 plt.axis('equal')
-# plt.scatter(rot_X,rot_Y)
-# plt.plot(rot_X,rot_Y)
-plt.scatter(X_cone,Y_cone,color='orange',label = 'cones')
-plt.scatter(X,Y,label='waypoint')
-# plt.scatter(state_0[1,:],state_0[2,:])
-# plt.plot((lon[:] - lon[0]),(lat[:] - lat[0]),label='actual')
+plt.xlabel('meters')
+plt.ylabel('meters')
+fig = plt.gcf()
+ax = fig.gca()
+for i in range(len(X)):
+    circle = plt.Circle((X_0[i],Y_0[i]),center_offset,color='b', fill=False)
+    ax.add_artist(circle)
+for i in range(len(X_cone)):
+    circle = plt.Circle((X_cone[i],Y_cone[i]),cone_radius,color='r',fill=True,label = 'cones')
+    ax.add_artist(circle)
+plt.scatter(X,Y,label='optimized waypoint')
+plt.scatter(X_0,Y_0,label='original (blue circle is the waypoint region')
 plt.plot(bx,by,label='expected trajectory')
 plt.legend()
-plt.show(block=False)
 
-
-theta = 26/57.3
+theta = 25/57.3
 rot_X = m.cos(theta)*X - m.sin(theta)*Y
 rot_Y = m.sin(theta)*X + m.cos(theta)*Y
+
+plt.show(block=True)
 
 X = rot_X
 Y = rot_Y
@@ -193,8 +132,7 @@ np.fmod(slope,360.0)
 
 wp = []
 for i in range(len(X)):
-	wp.append([X[i],Y[i],slope[i]])
+    wp.append([X[i],Y[i],slope[i]])
 wp = np.array(wp)
 np.save('LUCIFER_WP_cones.npy',wp)
-
-plt.show()
+# plt.show()
