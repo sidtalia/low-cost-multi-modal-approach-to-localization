@@ -41,7 +41,17 @@ If this work is useful to you, please cite it! I'm a budding researcher and ever
 The trajectory is generated from given waypoints using parametric curves (3rd order Bezier curves). The motivation for me to use Bezier curves was to reduce computation and memory requirements as this codebase has to run on a tiny STM32F100 microcontroller.
 
 ### Waypoint generation:
-Currently you'll need to enter the x,y locations of the cones and corresponding initial guesses for the waypoints (because some cones are on the inside and some on the outside of the turn so I don't really have a way to automate the initial guesses at the moment) and the track width into the waypoint_test.py program. It will then produce a set of waypoints that produce a minimum curvature trajectory.
+The offline trajectory optimization takes in ordered waypoint regions, i.e., (X,Y, radius) as input arguments and finds the optimal (X, Y, heading) coordinates for the car to pass through such that the resulting trajectory would be optimal (what is considered "optimal" can be decided by the user). The cost function is comprised of a family of weighted potential fields (or sub-cost functions). These sub-cost functions are:
+
+1) Total (absolute) curvature
+2) The derivative of curvature
+3) The second derivative of curvature
+4) The overall length of the trajectory
+5) C0 continuity between two consecutive sections
+6) C2 continuity between two consecutive sections 
+7) The sum of section-times (will be replaced with overall lap-time soon).
+
+The weights for these sub-functions can be changed by the user. They are pre-multiplied by a normalizing factor so the weights can be adjusted relative to each other (a weight vector of [2,2,2,2] will have the same effect as a weight vector of [0.1,0.1,0.1,0.1]). The code for this is in /GCS/waypoint_optimizer.py. 
 
 ![image](https://user-images.githubusercontent.com/24889667/70389062-666cda80-19e0-11ea-997c-940d2b90f7f5.png)
 
