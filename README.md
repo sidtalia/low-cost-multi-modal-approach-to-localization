@@ -38,7 +38,7 @@ Research paper for the same: https://ieeexplore.ieee.org/abstract/document/89790
 If this work is useful to you, please cite it! I'm a budding researcher and every citation goes a long way! :)
 
 ### Trajectory generation:
-The trajectory is generated from given waypoints using parametric curves (3rd order Bezier curves). The paper:"Alonzo Kelly and Bryan Nagy; Reactive Nonholonomic Trajectory Generation via Parametric Optimal Control" (http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.88.8908&rep=rep1&type=pdf) highlights the advantages of using parametric curves for the same. The motivation for me to use parametric curves was to reduce computation and memory requirements, as this codebase has to run on a tiny STM32F100 microcontroller.
+The trajectory is generated from given waypoints using parametric curves (3rd order Bezier curves). The motivation for me to use Bezier curves was to reduce computation and memory requirements as this codebase has to run on a tiny STM32F100 microcontroller.
 
 ### Waypoint generation:
 Currently you'll need to enter the x,y locations of the cones and corresponding initial guesses for the waypoints (because some cones are on the inside and some on the outside of the turn so I don't really have a way to automate the initial guesses at the moment) and the track width into the waypoint_test.py program. It will then produce a set of waypoints that produce a minimum curvature trajectory.
