@@ -364,7 +364,7 @@ class controller
 		{
 			return; //maintain a defined control frequency separate from observation frequency. Only used here because synchronising the time stamps across 2 objects would be difficult(sort of. could fix. create a pull request if you want it fixed)
 		}
-
+		stamp = millis();
 		float LIDAR_RANGE = (inputs[7] - 1000)*0.0045;
 		LIDAR_RANGE = LIDAR_RANGE <= 4.0f ? LIDAR_RANGE : 1e2;
 		LIDAR_RANGE = max(LIDAR_RANGE,0.1);
