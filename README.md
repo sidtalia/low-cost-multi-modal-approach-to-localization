@@ -1,5 +1,18 @@
+Associated paper: https://ieeexplore.ieee.org/abstract/document/8979000
+
+If you find this work useful, please cite:
+```
+@inproceedings{talia2019multimodal,
+  title={A multimodal approach for localization of Ackerman steering micro ground vehicles in bad GPS reception environments},
+  author={Talia, Sidharth},
+  booktitle={2019 3rd International Conference on Recent Developments in Control, Automation \& Power Engineering (RDCAPE)},
+  pages={64--69},
+  year={2019},
+  organization={IEEE}
+}
+```
+
 # Self-driving-car-STM-32
-(Note: The project is still in progress and there are many things yet to be implemented. I also do need to improve the documentation so please cut me some slack if I missed out on something :P ). (Project is currently in stasis due to the pandemic).
 
 This project is the third iteration of my attempt at a mini self-driving car. It started as an imitation of the ArduRover project without all the fancy GUI. I started doing this practically on a dare, but quickly realized I absolutely enjoyed the point where cars met robotics. Personally, I am a petrolhead, but I also love making things work autonomously and this project feels like the perfect spot in the middle. While the title does say its a self driving car project, the focus is actually on aggressive driving. 
 
